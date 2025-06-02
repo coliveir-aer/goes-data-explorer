@@ -34,8 +34,7 @@
             display: block;
         }
         .form-group select,
-        .form-group input[type="date"],
-        .form-group input[type="time"] {
+        .form-group input[type="date"] {
             width: 100%;
             padding: 12px 16px;
             border: 1px solid #cbd5e1;
@@ -46,8 +45,7 @@
             transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
         }
         .form-group select:focus,
-        .form-group input[type="date"]:focus,
-        .form-group input[type="time"]:focus {
+        .form-group input[type="date"]:focus {
             outline: none;
             border-color: #3b82f6;
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
@@ -237,14 +235,18 @@
                 </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div class="form-group mb-6">
+            <label for="dateInput" class="mb-2">Date (UTC):</label>
+            <input type="date" id="dateInput" class="focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <div class="grid grid-cols-2 gap-6 mb-8">
             <div class="form-group">
-                <label for="dateInput" class="mb-2">Date (UTC):</label>
-                <input type="date" id="dateInput" class="focus:ring-blue-500 focus:border-blue-500">
+                <label for="hourSelect" class="mb-2">Hour (UTC):</label>
+                <select id="hourSelect" class="focus:ring-blue-500 focus:border-blue-500"></select>
             </div>
             <div class="form-group">
-                <label for="timeInput" class="mb-2">Hour (UTC):</label>
-                <input type="time" id="timeInput" class="focus:ring-blue-500 focus:border-blue-500">
+                <label for="minuteSelect" class="mb-2">Minute (UTC):</label>
+                <select id="minuteSelect" class="focus:ring-blue-500 focus:border-blue-500"></select>
             </div>
         </div>
 
@@ -278,7 +280,8 @@
             const productTypeSelect = document.getElementById('productTypeSelect');
             const coverageRegionRadiosDiv = document.getElementById('coverageRegionRadios');
             const dateInput = document.getElementById('dateInput');
-            const timeInput = document.getElementById('timeInput');
+            const hourSelect = document.getElementById('hourSelect');
+            const minuteSelect = document.getElementById('minuteSelect');
             const queryButton = document.getElementById('queryButton');
             const downloadButton = document.getElementById('downloadButton');
             const resultsDiv = document.getElementById('results');
@@ -405,32 +408,49 @@
                 channelCheckboxesDiv.appendChild(label);
             }
 
+            // Populate Hour and Minute Selectors
+            for (let i = 0; i < 24; i++) {
+                const option = document.createElement('option');
+                option.value = String(i).padStart(2, '0');
+                option.textContent = String(i).padStart(2, '0');
+                hourSelect.appendChild(option);
+            }
+            for (let i = 0; i < 60; i++) {
+                const option = document.createElement('option');
+                option.value = String(i).padStart(2, '0');
+                option.textContent = String(i).padStart(2, '0');
+                minuteSelect.appendChild(option);
+            }
+
             // Set default date/time to 1 hour before current UTC time
             const nowUtc = new Date();
             nowUtc.setUTCHours(nowUtc.getUTCHours() - 1); // Subtract 1 hour
-            nowUtc.setUTCMinutes(0);
+            nowUtc.setUTCMinutes(0); // Round down minutes to the nearest hour
             nowUtc.setUTCSeconds(0);
             nowUtc.setUTCMilliseconds(0);
 
             const defaultDate = nowUtc.toISOString().slice(0, 10); //YYYY-MM-DD
-            const defaultTime = nowUtc.toISOString().slice(11, 16); // HH:MM
+            const defaultHour = String(nowUtc.getUTCHours()).padStart(2, '0');
+            const defaultMinute = String(nowUtc.getUTCMinutes()).padStart(2, '0');
 
             dateInput.value = defaultDate;
-            timeInput.value = defaultTime;
+            hourSelect.value = defaultHour;
+            minuteSelect.value = defaultMinute;
 
             // Function to get the current S3 prefix based on user selections
             function getCurrentS3Prefix() {
                 const selectedSatelliteRadio = document.querySelector('input[name="satellite"]:checked');
                 const baseProductType = productTypeSelect.value;
-                const selectedCoverageRegionRadio = document.querySelector('input[name="coverageRegion"]:checked');
+                const selectedCoverageRegionRadio = document.querySelector('input[name="coverageRegion"]:checked'); // Get it here
                 const dateVal = dateInput.value;
-                const timeVal = timeInput.value;
+                const hourVal = hourSelect.value;
+                const minuteVal = minuteSelect.value;
 
-                if (!selectedSatelliteRadio || !selectedCoverageRegionRadio || !dateVal || !timeVal) {
+                if (!selectedSatelliteRadio || !selectedCoverageRegionRadio || !dateVal || !hourVal || !minuteVal) {
                     return "Please make all selections to generate prefix.";
                 }
 
-                const dtString = `${dateVal}T${timeVal}:00.000Z`;
+                const dtString = `${dateVal}T${hourVal}:${minuteVal}:00.000Z`;
                 const dt = new Date(dtString);
 
                 if (isNaN(dt.getTime())) {
@@ -448,7 +468,7 @@
                 const dayOfYear = Math.floor(diff / oneDay) + 1;
                 
                 const hour = dt.getUTCHours();
-                const coverageRegion = selectedCoverageRegionRadio.value;
+                const coverageRegion = selectedCoverageRegionRadio.value; // Define coverageRegion here
 
                 let finalProductTypeForPrefix = baseProductType;
                 // Only append suffix if it's an ABI product (ABI-L1b or ABI-L2)
@@ -475,7 +495,7 @@
             function toggleChannelSelector() {
                 const selectedProductType = productTypeSelect.value;
                 const allChannelLabels = document.querySelectorAll('#channelCheckboxes label'); // Select labels directly
-                const relevantProductsForChannel = ["ABI-L1b-Rad", "ABI-L2-CMIP", "ABI-L2-DMW", "ABI-L2-DMWV"]; // Added DMWV
+                const relevantProductsForChannel = ["ABI-L1b-Rad", "ABI-L2-CMIP", "ABI-L2-DMW", "ABI-L2-DMWV"];
                 const dMwChannels = ["02", "07", "08", "09", "10", "14"];
 
                 if (relevantProductsForChannel.includes(selectedProductType)) {
@@ -483,7 +503,7 @@
 
                     allChannelLabels.forEach(label => {
                         const checkbox = document.getElementById(label.htmlFor); // Get associated checkbox
-                        if (selectedProductType === "ABI-L2-DMW" || selectedProductType === "ABI-L2-DMWV") { // Check for both DMW and DMWV
+                        if (selectedProductType === "ABI-L2-DMW" || selectedProductType === "ABI-L2-DMWV") {
                             // For DMW and DMWV, only show specific channels
                             if (dMwChannels.includes(checkbox.value)) {
                                 label.style.display = 'flex'; // Show label
@@ -519,7 +539,8 @@
             });
             coverageRegionRadiosDiv.addEventListener('change', updatePrefixDisplay);
             dateInput.addEventListener('change', updatePrefixDisplay);
-            timeInput.addEventListener('change', updatePrefixDisplay);
+            hourSelect.addEventListener('change', updatePrefixDisplay);
+            minuteSelect.addEventListener('change', updatePrefixDisplay);
 
             // Initial display of prefix and channel selector state
             updatePrefixDisplay();
@@ -543,14 +564,15 @@
                 const bucketName = selectedSatelliteRadio.value;
                 const coverageRegion = selectedCoverageRegionRadio.value;
                 const dateVal = dateInput.value;
-                const timeVal = timeInput.value;
+                const hourVal = hourSelect.value;
+                const minuteVal = minuteSelect.value;
 
-                if (!dateVal || !timeVal) {
+                if (!dateVal || !hourVal || !minuteVal) {
                     displayError("Please select a valid date and time.");
                     return;
                 }
 
-                const dtString = `${dateVal}T${timeVal}:00.000Z`;
+                const dtString = `${dateVal}T${hourVal}:${minuteVal}:00.000Z`;
                 const dt = new Date(dtString);
 
                 if (isNaN(dt.getTime())) {
@@ -599,7 +621,7 @@
                 console.log(`  Base Product Type: ${baseProductType}`);
                 console.log(`  Coverage Region: ${coverageRegion}`);
                 console.log(`  Final Product Type for Prefix: ${finalProductTypeForPrefix}`);
-                console.log(`  Input Date (UTC): ${dateVal} ${timeVal}`);
+                console.log(`  Input Date (UTC): ${dateVal} ${hourVal}:${minuteVal}`);
                 console.log(`  Calculated UTC Year: ${year}, Day of Year: ${dayOfYear}, Hour: ${hour}`);
                 console.log(`  S3 Prefix: ${prefix}`);
                 console.log(`  Bucket: ${bucketName}, Region: ${s3Region}`);
