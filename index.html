@@ -264,6 +264,9 @@
             <button id="downloadButton" class="btn-primary flex items-center w-full sm:w-auto justify-center" style="display: none;">
                 Download Selected Files
             </button>
+            <button id="selectAllButton" class="btn-primary flex items-center w-full sm:w-auto justify-center" style="display: none;">
+                Select All
+            </button>
         </div>
 
         <div id="errorMessage" class="error-message"></div>
@@ -284,6 +287,7 @@
             const minuteSelect = document.getElementById('minuteSelect');
             const queryButton = document.getElementById('queryButton');
             const downloadButton = document.getElementById('downloadButton');
+            const selectAllButton = document.getElementById('selectAllButton'); // Get the new button
             const resultsDiv = document.getElementById('results');
             const loadingSpinner = document.getElementById('loadingSpinner');
             const errorMessageDiv = document.getElementById('errorMessage');
@@ -611,6 +615,7 @@
                 hideError();
                 showLoading();
                 downloadButton.style.display = 'none';
+                selectAllButton.style.display = 'none'; // Hide select all button initially
 
                 let allFoundKeys = [];
                 let continuationToken = undefined;
@@ -730,14 +735,18 @@
                     if (keysToDisplay.length > 0) {
                         displayResults(keysToDisplay);
                         downloadButton.style.display = 'flex';
+                        selectAllButton.style.display = 'flex'; // Show select all button
+                        selectAllButton.textContent = 'Select All'; // Reset button text
                     } else {
                         displayResults("No object keys found for the specified criteria. Please double-check the date/time and product type. Data for the very latest hours might not be immediately available. You can check NOAA's GOES data availability for more info.");
+                        selectAllButton.style.display = 'none'; // Hide select all button if no results
                     }
 
                 } catch (error) {
                     hideLoading();
                     console.error("Error querying S3:", error);
                     displayError(`Failed to query S3: ${error.message || "An unknown error occurred."}`);
+                    selectAllButton.style.display = 'none'; // Hide select all button on error
                 }
             });
 
@@ -779,6 +788,19 @@
                         await new Promise(resolve => setTimeout(resolve, 200));
                     }
                 }
+            });
+
+            // Event listener for the new "Select All" button
+            selectAllButton.addEventListener('click', () => {
+                const checkboxes = resultsDiv.querySelectorAll('input[type="checkbox"]');
+                const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+
+                checkboxes.forEach(cb => {
+                    cb.checked = !allChecked; // Toggle the checked state
+                });
+
+                // Update button text based on new state
+                selectAllButton.textContent = allChecked ? 'Select All' : 'Deselect All';
             });
 
 
@@ -825,6 +847,7 @@
                 errorMessageDiv.style.display = 'block';
                 resultsDiv.innerHTML = '';
                 downloadButton.style.display = 'none';
+                selectAllButton.style.display = 'none'; // Hide select all button on error
                 hideLoading();
             }
 
