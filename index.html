@@ -685,17 +685,24 @@
                     let keysToDisplay = allFoundKeys;
                     
                     // Apply Mesoscale filtering
-                    if (baseProductType.startsWith('ABI-L') && coverageRegion === 'meso1') {
-                        const filterPattern = `${baseProductType.replace('M', '')}M1-`;
-                        keysToDisplay = keysToDisplay.filter(key => key.includes(filterPattern));
-                        console.log(`Filtered for Mesoscale 1 with pattern: ${filterPattern}. Found ${keysToDisplay.length} keys.`);
-                    } else if (baseProductType.startsWith('ABI-L') && coverageRegion === 'meso2') {
-                        const filterPattern = `${baseProductType.replace('M', '')}M2-`;
-                        keysToDisplay = keysToDisplay.filter(key => key.includes(filterPattern));
-                        console.log(`Filtered for Mesoscale 2 with pattern: ${filterPattern}. Found ${keysToDisplay.length} keys.`);
+                    if (baseProductType.startsWith('ABI-L')) {
+                        if (coverageRegion === 'meso1') {
+                            // Filter for keys that contain the base product type immediately followed by "M1-"
+                            const filterPattern = `${baseProductType}M1-`;
+                            keysToDisplay = keysToDisplay.filter(key => key.includes(filterPattern));
+                            console.log(`Filtered for Mesoscale 1 with pattern: ${filterPattern}. Found ${keysToDisplay.length} keys.`);
+                        } else if (coverageRegion === 'meso2') {
+                            // Filter for keys that contain the base product type immediately followed by "M2-"
+                            const filterPattern = `${baseProductType}M2-`;
+                            keysToDisplay = keysToDisplay.filter(key => key.includes(filterPattern));
+                            console.log(`Filtered for Mesoscale 2 with pattern: ${filterPattern}. Found ${keysToDisplay.length} keys.`);
+                        } else {
+                            console.log("No Mesoscale filtering applied.");
+                        }
                     } else {
-                        console.log("No Mesoscale filtering applied.");
+                        console.log("Mesoscale filtering not applicable for non-ABI products.");
                     }
+
 
                     // Apply Channel filtering if applicable
                     const selectedChannels = Array.from(document.querySelectorAll('#channelCheckboxes input[type="checkbox"]:checked'))
