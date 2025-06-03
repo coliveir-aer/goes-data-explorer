@@ -3,6 +3,9 @@ Search and Download data from GOES-R series satellites
 
 This repository contains a single-page web application for exploring and downloading data from the AWS Open Data buckets for the GOES-R series satellites.
 
+This application is also deployed and accessible via GitHub Pages:
+[https://coliveir-aer.github.io/goes-data-explorer/](https://coliveir-aer.github.io/goes-data-explorer/)
+
 **AWS Open Data Link:** [GOES on AWS Marketplace](https://aws.amazon.com/marketplace/pp/prodview-ngejrbcumyjtu?sr=0-33&ref_=beagle&applicationId=AWSMPContessa)
 
 All data queries are executed as client-side JavaScript requests directly against the AWS S3 APIs. Individual files are then downloaded into the user's default download folder, bypassing any server-side processing for data transfer.
@@ -48,8 +51,6 @@ To deploy this application to a web server:
 1.  Upload the `index.html` file (and any associated CSS/JS files if they were externalized) to any standard web server (e.g., Apache, Nginx, GitHub Pages, AWS S3 with static website hosting enabled).
 2.  Ensure that the server is configured to serve static HTML files.
 
-This application is also deployed and accessible via GitHub Pages:
-[https://coliveir-aer.github.io/goes-data-explorer/](https://coliveir-aer.github.io/goes-data-explorer/)
 
 ---
 
