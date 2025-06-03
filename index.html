@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GOES Data Explorer</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">\
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -495,13 +495,14 @@
                 currentPrefixDisplay.textContent = getCurrentS3Prefix();
             }
 
-            // Function to show/hide and enable/disable specific channel selectors
+            // Function to show/hide and enable/disable specific channel selectors and coverage region
             function toggleChannelSelector() {
                 const selectedProductType = productTypeSelect.value;
                 const allChannelLabels = document.querySelectorAll('#channelCheckboxes label'); // Select labels directly
                 const relevantProductsForChannel = ["ABI-L1b-Rad", "ABI-L2-CMIP", "ABI-L2-DMW", "ABI-L2-DMWV"];
                 const dMwChannels = ["02", "07", "08", "09", "10", "14"];
 
+                // Toggle visibility of channel selection group
                 if (relevantProductsForChannel.includes(selectedProductType)) {
                     channelSelectionGroup.style.display = 'block';
 
@@ -533,6 +534,18 @@
                         checkbox.disabled = true;
                     });
                 }
+
+                // Toggle visibility of coverage region radios
+                if (selectedProductType.startsWith('ABI-L')) {
+                    coverageRegionRadiosDiv.style.display = 'flex'; // Show if it's an ABI product
+                } else {
+                    coverageRegionRadiosDiv.style.display = 'none'; // Hide if it's not an ABI product
+                    // Optionally, reset the selected coverage region to default (e.g., Full Disk)
+                    const defaultCoverageRadio = document.getElementById('coverageRegion-fd');
+                    if (defaultCoverageRadio) {
+                        defaultCoverageRadio.checked = true;
+                    }
+                }
             }
 
             // Add event listeners to update prefix display and toggle channel selector on change
@@ -560,13 +573,13 @@
                     displayError("Please select a Satellite (GOES-16, GOES-17, GOES-18, or GOES-19).");
                     return;
                 }
-                if (!selectedCoverageRegionRadio) {
+                if (!selectedCoverageRegionRadio && baseProductType.startsWith('ABI-L')) { // Only require coverage region for ABI products
                     displayError("Please select a Coverage Region.");
                     return;
                 }
 
                 const bucketName = selectedSatelliteRadio.value;
-                const coverageRegion = selectedCoverageRegionRadio.value;
+                const coverageRegion = selectedCoverageRegionRadio ? selectedCoverageRegionRadio.value : 'N/A'; // Handle non-ABI products
                 const dateVal = dateInput.value;
                 const hourVal = hourSelect.value;
                 const minuteVal = minuteSelect.value;
