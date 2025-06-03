@@ -272,19 +272,19 @@
             background-color: #f8fafc;
         }
     </style>
-</head>
-        
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-S1GZVR1HPX"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
+    <!-- Google tag (gtag.js) - CORRECTLY PLACED IN HEAD -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-S1GZVR1HPX"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
 
-  gtag('config', 'G-S1GZVR1HPX');
-</script>
+      gtag('config', 'G-S1GZVR1HPX');
+    </script>
+</head>
 
 <body class="antialiased">
+    <div class="container">
         <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">GOES Data Explorer</h1>
 
         <div class="form-group mb-6">
