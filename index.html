@@ -433,9 +433,9 @@
         </div>
 
         <!-- Instruction Box -->
-        <div id="myHDF5Instruction" class="bg-yellow-100 text-yellow-800 border border-yellow-300 rounded-lg p-4 mb-6" style="display: none;">
+        <div id="myHDF5Instruction" class="bg-yellow-100 text-yellow-800 border border-yellow-300 rounded-lg p-4 mb-6">
             <p class="font-semibold mb-2">Tip for Viewing Files:</p>
-            <p>Select a single file from the results and click "Open in myhdf5.hdfgroup.org (Copies Path)". This will copy the direct S3 URL of the file to your clipboard and open <a href="https://myhdf5.hdfgroup.org/" target="_blank" class="text-yellow-800 underline hover:text-yellow-900">myhdf5.hdfgroup.org</a> in a new tab. You can then paste the copied URL into the "Load File from URL" field on that page to view the file directly in your browser.</p>
+            <p>Select a single file from the results and click "Open in myhdf5.hdfgroup.org (Direct View)". This will directly open the selected file in <a href="https://myhdf5.hdfgroup.org/" target="_blank" class="text-yellow-800 underline hover:text-yellow-900">myhdf5.hdfgroup.org</a> in a new tab for immediate viewing.</p>
         </div>
 
         <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
@@ -451,7 +451,7 @@
             </button>
             <!-- New button for myhdf5.hdfgroup.org -->
             <button id="openMyHDF5Button" class="btn-primary flex items-center w-full sm:w-auto justify-center" style="display: none;">
-                Open in myhdf5.hdfgroup.org (Copies Path)
+                Open in myhdf5.hdfgroup.org (Direct View)
             </button>
         </div>
 
@@ -1090,23 +1090,12 @@
                 const s3Region = 'us-east-1';
                 const fileUrl = `https://${bucketName}.s3.${s3Region}.amazonaws.com/${s3Key}`;
 
-                // Copy URL to clipboard
-                const tempInput = document.createElement('textarea');
-                tempInput.value = fileUrl;
-                document.body.appendChild(tempInput);
-                tempInput.select();
-                try {
-                    document.execCommand('copy');
-                    displayInstruction("The file URL has been copied to your clipboard. Please paste it into the 'Load File from URL' field on the myhdf5.hdfgroup.org page.");
-                } catch (err) {
-                    console.error('Failed to copy text:', err);
-                    displayError("Failed to copy URL to clipboard. Please manually copy the link: " + fileUrl);
-                } finally {
-                    document.body.removeChild(tempInput);
-                }
-
-                // Open myhdf5.hdfgroup.org in a new tab
-                window.open('https://myhdf5.hdfgroup.org/', '_blank');
+                // URL-encode the S3 file URL
+                const encodedFileUrl = encodeURIComponent(fileUrl);
+                const myHDF5DirectViewUrl = `https://myhdf5.hdfgroup.org/view?url=${encodedFileUrl}`;
+                
+                // Open myhdf5.hdfgroup.org in a new tab with the direct view URL
+                window.open(myHDF5DirectViewUrl, '_blank');
             });
 
 
