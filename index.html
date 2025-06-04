@@ -377,7 +377,7 @@
                                 <li>**Mesoscale (M1/M2):** The S3 directory path will use `[BaseProductCode]M/` (e.g., `ABI-L1b-RadM/`).
                                     <ul class="list-square ml-5">
                                         <li>*Filename Filtering:* Within these `...M/` directories, the application further filters files to ensure they contain `M1-` or `M2-` in their name, corresponding to the selected Mesoscale region.
-                                            <br>Example: `OR_ABI-L1b-RadM1-M6C01_G19_s20251541300281_e20251541300338_c20251541300390.nc`
+                                            <br>Example: `OR_ABI-L1b-RadM1-M6C01_G19_s20251541300281_e202515413003338_c20251541300390.nc`
                                         </li>
                                     </ul>
                                 </li>
@@ -402,6 +402,11 @@
 
         <div id="channelSelectionGroup" class="form-group mb-6" style="display: none;">
             <label class="mb-2">Channel Selection (ABI Only):</label>
+            <span class="text-sm text-gray-500 mb-2 block">If no channels are selected, all relevant channels for the product type will be included.</span>
+            <div class="flex gap-2 mb-2">
+                <button id="selectAllChannelsButton" class="btn-primary px-4 py-2 text-sm">Select All Channels</button>
+                <button id="clearAllChannelsButton" class="btn-primary px-4 py-2 text-sm">Clear All Channels</button>
+            </div>
             <div id="channelCheckboxes" class="channel-grid">
                 </div>
         </div>
@@ -427,6 +432,12 @@
                 </div>
         </div>
 
+        <!-- Instruction Box -->
+        <div id="myHDF5Instruction" class="bg-yellow-100 text-yellow-800 border border-yellow-300 rounded-lg p-4 mb-6" style="display: none;">
+            <p class="font-semibold mb-2">Tip for Viewing Files:</p>
+            <p>Select a single file from the results and click "Open in myhdf5.hdfgroup.org (Copies Path)". This will copy the direct S3 URL of the file to your clipboard and open <a href="https://myhdf5.hdfgroup.org/" target="_blank" class="text-yellow-800 underline hover:text-yellow-900">myhdf5.hdfgroup.org</a> in a new tab. You can then paste the copied URL into the "Load File from URL" field on that page to view the file directly in your browser.</p>
+        </div>
+
         <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
             <button id="queryButton" class="btn-primary flex items-center w-full sm:w-auto justify-center">
                 Query S3
@@ -438,9 +449,16 @@
             <button id="selectAllButton" class="btn-primary flex items-center w-full sm:w-auto justify-center" style="display: none;">
                 Select All
             </button>
+            <!-- New button for myhdf5.hdfgroup.org -->
+            <button id="openMyHDF5Button" class="btn-primary flex items-center w-full sm:w-auto justify-center" style="display: none;">
+                Open in myhdf5.hdfgroup.org (Copies Path)
+            </button>
         </div>
 
         <div id="errorMessage" class="error-message"></div>
+        <!-- Message box for user instructions (now for general messages) -->
+        <div id="instructionMessage" class="error-message bg-green-100 text-green-700 border-green-300" style="display: none;"></div>
+
 
         <h2 class="text-xl font-semibold text-gray-700 mb-4">Results:</h2>
         <div id="results" class="results-area">
@@ -448,6 +466,7 @@
         </div>
 
         <div class="text-center text-gray-600 text-sm mt-8 p-4 bg-white rounded-lg shadow-inner">
+            <p class="mb-2">Files can also be viewed directly in your browser using <a href="https://myhdf5.hdfgroup.org/" target="_blank" class="text-blue-600 hover:text-blue-800 font-semibold transition-colors duration-200">myhdf5.hdfgroup.org</a>.</p>
             <p><a href="https://github.com/coliveir-aer/goes-data-explorer" target="_blank" class="text-blue-600 hover:text-blue-800 font-semibold transition-colors duration-200">GOES Data Explorer github</a></p>
         </div>
     </div>
@@ -462,13 +481,19 @@
             const minuteSelect = document.getElementById('minuteSelect');
             const queryButton = document.getElementById('queryButton');
             const downloadButton = document.getElementById('downloadButton');
-            const selectAllButton = document.getElementById('selectAllButton'); // Get the new button
+            const selectAllButton = document.getElementById('selectAllButton');
+            const openMyHDF5Button = document.getElementById('openMyHDF5Button');
             const resultsDiv = document.getElementById('results');
             const loadingSpinner = document.getElementById('loadingSpinner');
             const errorMessageDiv = document.getElementById('errorMessage');
+            const instructionMessageDiv = document.getElementById('instructionMessage');
+            const myHDF5InstructionDiv = document.getElementById('myHDF5Instruction');
             const currentPrefixDisplay = document.getElementById('currentPrefix');
             const channelSelectionGroup = document.getElementById('channelSelectionGroup');
             const channelCheckboxesDiv = document.getElementById('channelCheckboxes');
+            const selectAllChannelsButton = document.getElementById('selectAllChannelsButton');
+            const clearAllChannelsButton = document.getElementById('clearAllChannelsButton');
+
 
             // Define available satellites (ordered: 16, 17, 18, 19, with 19 as default)
             const satellites = [
@@ -548,6 +573,7 @@
                 input.name = 'satellite';
                 input.value = sat.value;
                 if (sat.value === "noaa-goes19") input.checked = true; // Set GOES-19 as default
+                // No change to default satellite as per request.
 
                 const label = document.createElement('label');
                 label.htmlFor = `satellite-${sat.value}`;
@@ -558,21 +584,26 @@
             });
 
             // Populate Product Type dropdown
-            productTypes.forEach((type, index) => {
+            productTypes.forEach((type) => {
                 const option = document.createElement('option');
                 option.value = type.value;
                 option.textContent = type.label;
                 productTypeSelect.appendChild(option);
             });
+            // Set default product type to ABI L2 Cloud Altitude (ABI-L2-ACHA)
+            productTypeSelect.value = "ABI-L2-ACHA";
 
             // Populate Coverage Region radio buttons
-            coverageRegions.forEach((region, index) => {
+            coverageRegions.forEach((region) => {
                 const input = document.createElement('input');
                 input.type = 'radio';
                 input.id = `coverageRegion-${region.value}`;
                 input.name = 'coverageRegion';
                 input.value = region.value;
-                if (index === 0) input.checked = true; // Default select first option
+                // Set default coverage region to Full Disk
+                if (region.value === "fd") {
+                    input.checked = true;
+                }
 
                 const label = document.createElement('label');
                 label.htmlFor = `coverageRegion-${region.value}`;
@@ -590,6 +621,10 @@
                 input.id = `channel-${channelNum}`;
                 input.name = 'channel';
                 input.value = channelNum;
+                // Set default channel to 02 (Band 2)
+                if (channelNum === "02") {
+                    input.checked = true;
+                }
 
                 const label = document.createElement('label');
                 label.htmlFor = `channel-${channelNum}`;
@@ -727,7 +762,7 @@
                     coverageRegionRadiosDiv.style.display = 'flex'; // Show if it's an ABI product
                 } else {
                     coverageRegionRadiosDiv.style.display = 'none'; // Hide if it's not an ABI product
-                    // Optionally, reset the selected coverage region to default (e.g., Full Disk)
+                    // Ensure the default coverage region is selected when hiding the radios
                     const defaultCoverageRadio = document.getElementById('coverageRegion-fd');
                     if (defaultCoverageRadio) {
                         defaultCoverageRadio.checked = true;
@@ -816,9 +851,13 @@
                 resultsDiv.innerHTML = 'Querying S3...';
                 resultsDiv.classList.remove('text-red-500');
                 hideError();
+                hideInstruction(); // Hide general instruction message
+                hideMyHDF5Instruction(); // Hide myHDF5 specific instruction message
                 showLoading();
                 downloadButton.style.display = 'none';
                 selectAllButton.style.display = 'none'; // Hide select all button initially
+                openMyHDF5Button.style.display = 'none'; // Hide new button initially
+
 
                 let allFoundKeys = [];
                 let continuationToken = undefined;
@@ -924,7 +963,7 @@
                         console.log(`Filtered for channels: ${selectedChannels.join(', ')}. Reduced from ${originalCount} to ${keysToDisplay.length} keys.`);
                     } else if (relevantProductsForChannel.includes(baseProductType) && selectedChannels.length === 0 && channelSelectionGroup.style.display === 'block') {
                         // This case means channel selector is visible but nothing is selected.
-                        // We do not filter here, but we log a message.
+                        // As per new instruction, if no channels are selected, all relevant channels are included.
                         console.log("Channel selector visible but no channels selected. Displaying all relevant keys for this product type.");
                     } else {
                         console.log("Channel filtering not applicable for this product type.");
@@ -937,9 +976,13 @@
                         downloadButton.style.display = 'flex';
                         selectAllButton.style.display = 'flex'; // Show select all button
                         selectAllButton.textContent = 'Select All'; // Reset button text
+                        openMyHDF5Button.style.display = 'flex'; // Show new button
+                        showMyHDF5Instruction(); // Show myHDF5 specific instruction message
                     } else {
                         displayResults("No object keys found for the specified criteria. Please double-check the date/time and product type. Data for the very latest hours might not be immediately available. You can check NOAA's GOES data availability for more info.");
                         selectAllButton.style.display = 'none'; // Hide select all button if no results
+                        openMyHDF5Button.style.display = 'none'; // Hide new button if no results
+                        hideMyHDF5Instruction(); // Hide myHDF5 specific instruction message
                     }
 
                 } catch (error) {
@@ -947,6 +990,8 @@
                     console.error("Error querying S3:", error);
                     displayError(`Failed to query S3: ${error.message || "An unknown error occurred."}`);
                     selectAllButton.style.display = 'none'; // Hide select all button on error
+                    openMyHDF5Button.style.display = 'none'; // Hide new button on error
+                    hideMyHDF5Instruction(); // Hide myHDF5 specific instruction message
                 }
             });
 
@@ -958,6 +1003,8 @@
                 }
 
                 hideError();
+                hideInstruction(); // Hide general instruction message
+                hideMyHDF5Instruction(); // Hide myHDF5 specific instruction message
 
                 if (selectedCheckboxes.length > 1) {
                     resultsDiv.innerHTML = `<div class="text-blue-600 font-medium mb-4">Starting ${selectedCheckboxes.length} downloads... Please check your browser's download bar or pop-up blocker if you don't see them.</div>`;
@@ -990,7 +1037,7 @@
                 }
             });
 
-            // Event listener for the new "Select All" button
+            // Event listener for the main "Select All" button (for file results)
             selectAllButton.addEventListener('click', () => {
                 const checkboxes = resultsDiv.querySelectorAll('input[type="checkbox"]');
                 const allChecked = Array.from(checkboxes).every(cb => cb.checked);
@@ -1001,6 +1048,65 @@
 
                 // Update button text based on new state
                 selectAllButton.textContent = allChecked ? 'Select All' : 'Deselect All';
+            });
+
+            // Event listener for the new "Select All Channels" button
+            selectAllChannelsButton.addEventListener('click', () => {
+                const channelCheckboxes = channelCheckboxesDiv.querySelectorAll('input[type="checkbox"]');
+                channelCheckboxes.forEach(cb => {
+                    if (!cb.disabled) { // Only select if not disabled by product type
+                        cb.checked = true;
+                    }
+                });
+                updatePrefixDisplay(); // Update prefix if channel selection affects it
+            });
+
+            // Event listener for the new "Clear All Channels" button
+            clearAllChannelsButton.addEventListener('click', () => {
+                const channelCheckboxes = channelCheckboxesDiv.querySelectorAll('input[type="checkbox"]');
+                channelCheckboxes.forEach(cb => {
+                    cb.checked = false;
+                });
+                updatePrefixDisplay(); // Update prefix if channel selection affects it
+            });
+
+
+            // Event listener for the new "Open in myhdf5.hdfgroup.org" button
+            openMyHDF5Button.addEventListener('click', () => {
+                const selectedCheckboxes = resultsDiv.querySelectorAll('input[type="checkbox"]:checked');
+                if (selectedCheckboxes.length !== 1) {
+                    displayError("Please select exactly ONE file to open in myhdf5.hdfgroup.org.");
+                    return;
+                }
+
+                hideError();
+                hideInstruction();
+                hideMyHDF5Instruction(); // Hide myHDF5 specific instruction message
+
+                const checkbox = selectedCheckboxes[0];
+                const s3Key = checkbox.value;
+                const selectedSatelliteRadio = document.querySelector('input[name="satellite"]:checked');
+                const bucketName = selectedSatelliteRadio ? selectedSatelliteRadio.value : 'noaa-goes19'; // Fallback to GOES-19
+                const s3Region = 'us-east-1';
+                const fileUrl = `https://${bucketName}.s3.${s3Region}.amazonaws.com/${s3Key}`;
+
+                // Copy URL to clipboard
+                const tempInput = document.createElement('textarea');
+                tempInput.value = fileUrl;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                try {
+                    document.execCommand('copy');
+                    displayInstruction("The file URL has been copied to your clipboard. Please paste it into the 'Load File from URL' field on the myhdf5.hdfgroup.org page.");
+                } catch (err) {
+                    console.error('Failed to copy text:', err);
+                    displayError("Failed to copy URL to clipboard. Please manually copy the link: " + fileUrl);
+                } finally {
+                    document.body.removeChild(tempInput);
+                }
+
+                // Open myhdf5.hdfgroup.org in a new tab
+                window.open('https://myhdf5.hdfgroup.org/', '_blank');
             });
 
 
@@ -1048,12 +1154,33 @@
                 resultsDiv.innerHTML = '';
                 downloadButton.style.display = 'none';
                 selectAllButton.style.display = 'none'; // Hide select all button on error
+                openMyHDF5Button.style.display = 'none'; // Hide new button on error
                 hideLoading();
+                hideInstruction(); // Hide general instruction message on error
+                hideMyHDF5Instruction(); // Hide myHDF5 specific instruction message on error
             }
 
             function hideError() {
                 errorMessageDiv.style.display = 'none';
                 errorMessageDiv.textContent = '';
+            }
+
+            function displayInstruction(message) {
+                instructionMessageDiv.textContent = message;
+                instructionMessageDiv.style.display = 'block';
+            }
+
+            function hideInstruction() {
+                instructionMessageDiv.style.display = 'none';
+                instructionMessageDiv.textContent = '';
+            }
+
+            function showMyHDF5Instruction() {
+                myHDF5InstructionDiv.style.display = 'block';
+            }
+
+            function hideMyHDF5Instruction() {
+                myHDF5InstructionDiv.style.display = 'none';
             }
         });
     </script>
