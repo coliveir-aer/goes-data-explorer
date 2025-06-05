@@ -38,7 +38,7 @@ To run this application locally:
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/coliveir-aer/goes-data-explorer.git](https://github.com/coliveir-aer/goes-data-explorer.git)
+    git clone https://github.com/coliveir-aer/goes-data-explorer.git
     cd goes-data-explorer
     ```
 2.  **Open `index.html`:**
