@@ -278,7 +278,7 @@
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-
+      
       gtag('config', 'G-S1GZVR1HPX');
     </script>
 </head>
@@ -501,7 +501,7 @@
             const myHDF5InstructionDiv = document.getElementById('myHDF5Instruction');
             const currentPrefixDisplay = document.getElementById('currentPrefix');
             const channelSelectionGroup = document.getElementById('channelSelectionGroup');
-            const channelCheckboxesDiv = document = document.getElementById('channelCheckboxes');
+            const channelCheckboxesDiv = document.getElementById('channelCheckboxes'); // Corrected
             const selectAllChannelsButton = document.getElementById('selectAllChannelsButton');
             const clearAllChannelsButton = document.getElementById('clearAllChannelsButton');
 
@@ -682,30 +682,21 @@
             });
 
             // Function to get the current S3 prefix based on user selections (for the actual S3 query)
-            function getCurrentS3QueryPrefix() { // Renamed for clarity
+            function getCurrentS3QueryPrefix(dateObj, hour) { // Renamed for clarity and added parameters
                 const selectedSatelliteRadio = document.querySelector('input[name="satellite"]:checked');
                 const baseProductType = productTypeSelect.value;
                 const selectedCoverageRegionRadio = document.querySelector('input[name="coverageRegion"]:checked');
-                const dateVal = dateInput.value;
-                const hourVal = hourSelect.value;
 
-                if (!selectedSatelliteRadio || !selectedCoverageRegionRadio || !dateVal || !hourVal) {
-                    return "Please make all selections to generate prefix.";
+                if (!selectedSatelliteRadio || (baseProductType.startsWith('ABI-L') && coverageRegionRadiosDiv.style.display !== 'none' && !selectedCoverageRegionRadio)) {
+                    return null; // Return null if essential selections are missing
                 }
 
-                // Construct a Date object for deriving year, dayOfYear, hour (for S3 path)
-                const dtStringForS3Path = `${dateVal}T${hourVal}:00:00Z`; // Only hour matters for S3 path prefix
-                const dtForS3Path = new Date(dtStringForS3Path);
-
-                if (isNaN(dtForS3Path.getTime())) {
-                    console.error("Invalid dtStringForS3Path in getCurrentS3QueryPrefix:", dtStringForS3Path);
-                    return "Invalid date or time for S3 prefix calculation. Please correct.";
-                }
-
-                const year = dtForS3Path.getUTCFullYear();
-                const dayOfYear = Math.floor((dtForS3Path.getTime() - new Date(Date.UTC(year, 0, 1)).getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                const hour = dtForS3Path.getUTCHours();
-                const coverageRegion = selectedCoverageRegionRadio.value;
+                const year = dateObj.getUTCFullYear();
+                // Calculate day of year
+                const startOfYear = new Date(Date.UTC(year, 0, 1));
+                const dayOfYear = Math.floor((dateObj.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                
+                const coverageRegion = selectedCoverageRegionRadio ? selectedCoverageRegionRadio.value : 'N/A';
 
                 let finalProductTypeForPrefix = baseProductType;
                 // Append suffix based on coverage region for ABI products
@@ -733,31 +724,39 @@
                 const minuteVal = minuteSelect.value;
                 const timeDelta = timeDeltaSlider.value;
 
-                if (!selectedSatelliteRadio || !selectedCoverageRegionRadio || !dateVal || !hourVal || !minuteVal) {
+                if (!selectedSatelliteRadio || (baseProductType.startsWith('ABI-L') && coverageRegionRadiosDiv.style.display !== 'none' && !selectedCoverageRegionRadio) || !dateVal || !hourVal || !minuteVal) {
                     currentPrefixDisplay.textContent = "Please make all selections to generate prefix.";
                     return;
                 }
 
-                const s3PathPrefix = getCurrentS3QueryPrefix(); // Get the actual S3 path prefix
-                currentPrefixDisplay.textContent = `${s3PathPrefix} (Filtering around ${hourVal}:${minuteVal} +/- ${timeDelta} min)`;
+                // Create a temporary date object for prefix generation, using the selected date and hour
+                const tempDateObj = new Date(`${dateVal}T${hourVal}:00:00Z`);
+                const s3PathPrefix = getCurrentS3QueryPrefix(tempDateObj, parseInt(hourVal, 10)); // Pass tempDateObj and hour
+
+                if (s3PathPrefix) {
+                    currentPrefixDisplay.textContent = `${s3PathPrefix} (Filtering around ${hourVal}:${minuteVal} +/- ${timeDelta} min)`;
+                } else {
+                     currentPrefixDisplay.textContent = "Please make all selections to generate prefix.";
+                }
             }
 
             // Function to extract time from GOES filename (e.g., OR_ABI-L1b-RadF-M6C01_G17_s20231640000210_e20231640000210_c20231640000302.nc)
-            // It expects a filename and comes back with an object { hour: number, minute: number, second: number } or null if not found
+            // It expects a filename and comes back with an object { year: number, dayOfYear: number, hour: number, minute: number, second: number } or null if not found
             function parseTimeFromFilename(filename) {
-                // Modified regex: _s followed by 7 digits (YYYYDDD), then captures 6 digits (HHMMSS),
-                // then matches one or more digits (fff, for fractional seconds).
-                const startTimeMatch = filename.match(/_s\d{7}(\d{6})\d+/); // Removed trailing underscore from regex
-                if (startTimeMatch && startTimeMatch[1]) {
-                    const timeString = startTimeMatch[1]; // e.g., "000021"
+                // Regex to capture year, day of year, and HHMMSS from the 's' (start) timestamp
+                const startTimeMatch = filename.match(/_s(\d{4})(\d{3})(\d{6})\d+/); 
+                if (startTimeMatch) {
+                    const year = parseInt(startTimeMatch[1], 10);
+                    const dayOfYear = parseInt(startTimeMatch[2], 10);
+                    const timeString = startTimeMatch[3]; // e.g., "000021"
                     const hour = parseInt(timeString.substring(0, 2), 10);
                     const minute = parseInt(timeString.substring(2, 4), 10);
                     const second = parseInt(timeString.substring(4, 6), 10);
-                    // Check for valid hour/minute/second
-                    if (!isNaN(hour) && hour >= 0 && hour <= 23 &&
-                        !isNaN(minute) && minute >= 0 && minute <= 59 &&
-                        !isNaN(second) && second >= 0 && second <= 59) {
-                        return { hour, minute, second };
+                    
+                    if (!isNaN(year) && !isNaN(dayOfYear) && !isNaN(hour) && !isNaN(minute) && !isNaN(second)) {
+                        // Calculate date from year and dayOfYear to normalize
+                        const date = new Date(Date.UTC(year, 0, dayOfYear)); // Month is 0-indexed, day is 1-indexed
+                        return { year, dayOfYear, hour, minute, second, date };
                     }
                 }
                 return null;
@@ -863,30 +862,14 @@
                     return;
                 }
                 
-                // Construct the S3 prefix for the actual query (without time delta filtering)
-                const dtForS3Path = new Date(`${dateVal}T${hourVal}:00:00Z`); // Time part is only for year, dayOfYear, hour components of S3 prefix
-                if (isNaN(dtForS3Path.getTime())) {
-                    console.error("Invalid Date object for S3 path calculation from:", `${dateVal}T${hourVal}:00:00Z`);
-                    displayError("Invalid date or time for S3 path. Please verify your selections.");
+                // Construct the base Date object for the selected time
+                const selectedDateTime = new Date(`${dateVal}T${hourVal}:${minuteVal}:00Z`);
+                if (isNaN(selectedDateTime.getTime())) {
+                    console.error("Invalid Date object from:", `${dateVal}T${hourVal}:${minuteVal}:00Z`);
+                    displayError("Invalid date or time. Please verify your selections.");
                     return;
                 }
 
-                const year = dtForS3Path.getUTCFullYear();
-                const dayOfYear = Math.floor((dtForS3Path.getTime() - new Date(Date.UTC(year, 0, 1)).getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                const hour = dtForS3Path.getUTCHours();
-
-                let finalProductTypeForPrefix = baseProductType;
-                if (baseProductType.startsWith('ABI-L')) {
-                    if (coverageRegion === 'fd') {
-                        finalProductTypeForPrefix += 'F';
-                    } else if (coverageRegion === 'conus') {
-                        finalProductTypeForPrefix += 'C';
-                    } else if (coverageRegion === 'meso1' || coverageRegion === 'meso2') {
-                        finalProductTypeForPrefix += 'M';
-                    }
-                }
-
-                const prefix = `${finalProductTypeForPrefix}/${year}/${String(dayOfYear).padStart(3, '0')}/${String(hour).padStart(2, '0')}/`;
                 const s3Region = 'us-east-1';
 
                 resultsDiv.innerHTML = 'Querying S3...';
@@ -900,88 +883,107 @@
                 openMyHDF5Button.style.display = 'none';
 
                 let allFoundKeys = [];
-                let continuationToken = undefined;
-                let isTruncated = true;
+                let prefixesToQuery = new Set(); // Use a Set to store unique prefixes
+
+                // Calculate the start and end times for the search window
+                const searchWindowStart = new Date(selectedDateTime.getTime() - timeDelta * 60 * 1000);
+                const searchWindowEnd = new Date(selectedDateTime.getTime() + timeDelta * 60 * 1000);
+
+                // Add prefixes for the current hour
+                prefixesToQuery.add(getCurrentS3QueryPrefix(selectedDateTime, selectedDateTime.getUTCHours()));
+
+                // Check if the search window extends into the previous hour
+                if (searchWindowStart.getUTCHours() !== selectedDateTime.getUTCHours()) {
+                    prefixesToQuery.add(getCurrentS3QueryPrefix(searchWindowStart, searchWindowStart.getUTCHours()));
+                }
+
+                // Check if the search window extends into the next hour
+                if (searchWindowEnd.getUTCHours() !== selectedDateTime.getUTCHours()) {
+                    prefixesToQuery.add(getCurrentS3QueryPrefix(searchWindowEnd, searchWindowEnd.getUTCHours()));
+                }
+
+                // Remove any null prefixes that might have been added due to missing selections
+                const validPrefixes = Array.from(prefixesToQuery).filter(p => p !== null);
 
                 console.log(`Attempting to query S3 for:`);
                 console.log(`  Satellite: ${selectedSatelliteRadio.label}`);
                 console.log(`  Base Product Type (dropdown): ${baseProductType}`);
                 console.log(`  Coverage Region: ${coverageRegion}`);
-                console.log(`  Final Product Type for S3 Prefix (used in query): ${finalProductTypeForPrefix}`);
-                console.log(`  Calculated UTC Year: ${year}, Day of Year: ${dayOfYear}, Hour: ${hour}`);
-                console.log(`  S3 Query Prefix: ${prefix}`);
                 console.log(`  Bucket: ${bucketName}, Region: ${s3Region}`);
+                console.log(`  Calculated Prefixes to Query:`, validPrefixes);
 
                 try {
-                    while (isTruncated) {
-                        let url = `https://${bucketName}.s3.${s3Region}.amazonaws.com/?list-type=2&prefix=${encodeURIComponent(prefix)}`;
-                        if (continuationToken) {
-                            url += `&continuation-token=${encodeURIComponent(continuationToken)}`;
-                        }
+                    for (const prefix of validPrefixes) {
+                        let continuationToken = undefined;
+                        let isTruncated = true;
 
-                        console.log(`Fetching URL: ${url}`);
-                        const response = await fetch(url);
-
-                        if (!response.ok) {
-                            const errorText = await response.text();
-                            throw new Error(`HTTP error! Status: ${response.status}, Body: ${errorText}`);
-                        }
-
-                        const responseText = await response.text();
-                        console.log("Raw S3 XML Response:", responseText);
-                        
-                        const parser = new DOMParser();
-                        const xmlDoc = parser.parseFromString(responseText, "application/xml");
-
-                        const errorNode = xmlDoc.querySelector('Error');
-                        if (errorNode) {
-                            const errorCode = errorNode.querySelector('Code')?.textContent;
-                            const errorMessage = errorNode.querySelector('Message')?.textContent;
-                            throw new Error(`S3 Error: ${errorCode} - ${errorMessage}`);
-                        }
-
-                        const contents = xmlDoc.querySelectorAll('Contents');
-                        console.log(`Found ${contents.length} 'Contents' nodes in XML.`);
-                        
-                        if (contents.length === 0 && !isTruncated) {
-                            console.warn("No 'Contents' found in the S3 response for this prefix. This might mean no data exists for the selected time/product, or the prefix is incorrect.");
-                        }
-
-                        contents.forEach(item => {
-                            const key = item.querySelector('Key')?.textContent;
-                            if (key) {
-                                allFoundKeys.push(key);
-                                console.log(`  Found key: ${key}`);
+                        while (isTruncated) {
+                            let url = `https://${bucketName}.s3.${s3Region}.amazonaws.com/?list-type=2&prefix=${encodeURIComponent(prefix)}`;
+                            if (continuationToken) {
+                                url += `&continuation-token=${encodeURIComponent(continuationToken)}`;
                             }
-                        });
 
-                        const isTruncatedNode = xmlDoc.querySelector('IsTruncated');
-                        isTruncated = isTruncatedNode && isTruncatedNode.textContent === 'true';
-                        console.log(`IsTruncated: ${isTruncated}`);
+                            console.log(`Fetching URL: ${url}`);
+                            const response = await fetch(url);
 
-                        const nextContinuationTokenNode = xmlDoc.querySelector('NextContinuationToken');
-                        continuationToken = nextContinuationTokenNode ? nextContinuationTokenNode.textContent : undefined;
-                        console.log(`NextContinuationToken: ${continuationToken}`);
+                            if (!response.ok) {
+                                const errorText = await response.text();
+                                throw new Error(`HTTP error! Status: ${response.status}, Body: ${errorText}`);
+                            }
+
+                            const responseText = await response.text();
+                            // console.log("Raw S3 XML Response:", responseText); // Too verbose, uncomment for deep debugging
+                            
+                            const parser = new DOMParser();
+                            const xmlDoc = parser.parseFromString(responseText, "application/xml");
+
+                            const errorNode = xmlDoc.querySelector('Error');
+                            if (errorNode) {
+                                const errorCode = errorNode.querySelector('Code')?.textContent;
+                                const errorMessage = errorNode.querySelector('Message')?.textContent;
+                                throw new Error(`S3 Error: ${errorCode} - ${errorMessage}`);
+                            }
+
+                            const contents = xmlDoc.querySelectorAll('Contents');
+                            // console.log(`Found ${contents.length} 'Contents' nodes in XML for prefix: ${prefix}.`); // Too verbose
+                            
+                            contents.forEach(item => {
+                                const key = item.querySelector('Key')?.textContent;
+                                if (key) {
+                                    allFoundKeys.push(key);
+                                    // console.log(`  Found key: ${key}`); // Too verbose
+                                }
+                            });
+
+                            const isTruncatedNode = xmlDoc.querySelector('IsTruncated');
+                            isTruncated = isTruncatedNode && isTruncatedNode.textContent === 'true';
+                            // console.log(`IsTruncated for prefix ${prefix}: ${isTruncated}`); // Too verbose
+
+                            const nextContinuationTokenNode = xmlDoc.querySelector('NextContinuationToken');
+                            continuationToken = nextContinuationTokenNode ? nextContinuationTokenNode.textContent : undefined;
+                            // console.log(`NextContinuationToken for prefix ${prefix}: ${continuationToken}`); // Too verbose
+                        }
                     }
 
-                    console.log("--- All keys found from S3 (before client-side filtering): ---");
+                    // Remove duplicate keys if any (due to querying multiple prefixes that might overlap slightly)
+                    allFoundKeys = Array.from(new Set(allFoundKeys));
+
+                    console.log("--- All unique keys found from S3 (before client-side filtering): ---");
                     allFoundKeys.forEach(key => console.log(key));
+                    console.log(`Total unique keys found: ${allFoundKeys.length}`);
                     console.log("----------------------------------------------------------");
 
                     // CLIENT-SIDE FILTERING: Apply time delta filtering to the full list of keys
-                    const targetTimeInMinutes = selectedHour * 60 + selectedMinute;
-                    const lowerBoundInMinutes = targetTimeInMinutes - timeDelta;
-                    const upperBoundInMinutes = targetTimeInMinutes + timeDelta;
-
                     let keysToDisplay = allFoundKeys.filter(key => {
                         const filename = key.split('/').pop();
                         const timeInFilename = parseTimeFromFilename(filename);
 
                         if (timeInFilename) {
-                            const fileTimeInMinutes = timeInFilename.hour * 60 + timeInFilename.minute;
+                            // Reconstruct full UTC date object for the file's timestamp
+                            const fileDateTime = new Date(Date.UTC(timeInFilename.year, 0, timeInFilename.dayOfYear, timeInFilename.hour, timeInFilename.minute, timeInFilename.second));
+                            
                             // Check if the file's time falls within the allowed delta range
-                            // This comparison should now work as timeInFilename will be valid
-                            return fileTimeInMinutes >= lowerBoundInMinutes && fileTimeInMinutes <= upperBoundInMinutes;
+                            return fileDateTime.getTime() >= searchWindowStart.getTime() && fileDateTime.getTime() <= searchWindowEnd.getTime();
                         }
                         console.warn(`Could not parse time from filename: ${filename}`); // Log if parsing fails
                         return false; // Filter out keys where time parsing failed
@@ -993,8 +995,10 @@
                         const targetMesoscaleSuffix = coverageRegion === 'meso1' ? 'M1-' : 'M2-';
                         const originalCount = keysToDisplay.length;
                         keysToDisplay = keysToDisplay.filter(key => {
-                            const productTypeInKey = key.split('/')[0];
-                            return key.includes(`${baseProductType}${targetMesoscaleSuffix}`);
+                            // Check if the key contains the specific Mesoscale suffix in its filename
+                            // This assumes filename part is at the end of the key path after the last '/'
+                            const filenamePart = key.split('/').pop();
+                            return filenamePart && filenamePart.includes(`${baseProductType}${targetMesoscaleSuffix}`);
                         });
                         console.log(`Filtered for Mesoscale ${targetMesoscaleSuffix.replace('-', '')} with pattern: ${baseProductType}${targetMesoscaleSuffix}. Reduced from ${originalCount} to ${keysToDisplay.length} keys.`);
                     } else {
