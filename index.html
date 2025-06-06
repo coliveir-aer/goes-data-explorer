@@ -426,6 +426,15 @@
             </div>
         </div>
 
+        <!-- Time Delta Slider - NEW FEATURE -->
+        <div class="form-group mb-6">
+            <label for="timeDeltaSlider" class="mb-2 flex justify-between items-center">
+                <span>Time Delta (Minutes):</span>
+                <span id="timeDeltaValue" class="font-normal text-gray-600">15 min</span>
+            </label>
+            <input type="range" id="timeDeltaSlider" min="0" max="60" value="15" step="1" class="w-full h-2 bg-blue-100 rounded-lg appearance-none cursor-pointer range-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75">
+        </div>
+
         <div class="form-group mb-6">
             <label for="currentPrefix" class="mb-2">Generated S3 Prefix (for QC):</label>
             <div id="currentPrefix" class="results-area text-sm bg-gray-100 p-3 rounded-md break-words">
@@ -479,6 +488,8 @@
             const dateInput = document.getElementById('dateInput');
             const hourSelect = document.getElementById('hourSelect');
             const minuteSelect = document.getElementById('minuteSelect');
+            const timeDeltaSlider = document.getElementById('timeDeltaSlider');
+            const timeDeltaValueSpan = document.getElementById('timeDeltaValue');
             const queryButton = document.getElementById('queryButton');
             const downloadButton = document.getElementById('downloadButton');
             const selectAllButton = document.getElementById('selectAllButton');
@@ -490,7 +501,7 @@
             const myHDF5InstructionDiv = document.getElementById('myHDF5Instruction');
             const currentPrefixDisplay = document.getElementById('currentPrefix');
             const channelSelectionGroup = document.getElementById('channelSelectionGroup');
-            const channelCheckboxesDiv = document.getElementById('channelCheckboxes');
+            const channelCheckboxesDiv = document = document.getElementById('channelCheckboxes');
             const selectAllChannelsButton = document.getElementById('selectAllChannelsButton');
             const clearAllChannelsButton = document.getElementById('clearAllChannelsButton');
 
@@ -663,37 +674,37 @@
             hourSelect.value = defaultHour;
             minuteSelect.value = defaultMinute;
 
-            // Function to get the current S3 prefix based on user selections
-            function getCurrentS3Prefix() {
+            // Initialize time delta slider and its display
+            timeDeltaValueSpan.textContent = `${timeDeltaSlider.value} min`;
+            timeDeltaSlider.addEventListener('input', () => {
+                timeDeltaValueSpan.textContent = `${timeDeltaSlider.value} min`;
+                updatePrefixDisplay(); // Update the prefix display to reflect time delta in QC prefix
+            });
+
+            // Function to get the current S3 prefix based on user selections (for the actual S3 query)
+            function getCurrentS3QueryPrefix() { // Renamed for clarity
                 const selectedSatelliteRadio = document.querySelector('input[name="satellite"]:checked');
-                const baseProductType = productTypeSelect.value; // This is now the base product type (e.g., ABI-L1b-Rad)
+                const baseProductType = productTypeSelect.value;
                 const selectedCoverageRegionRadio = document.querySelector('input[name="coverageRegion"]:checked');
                 const dateVal = dateInput.value;
                 const hourVal = hourSelect.value;
-                const minuteVal = minuteSelect.value;
 
-                if (!selectedSatelliteRadio || !selectedCoverageRegionRadio || !dateVal || !hourVal || !minuteVal) {
+                if (!selectedSatelliteRadio || !selectedCoverageRegionRadio || !dateVal || !hourVal) {
                     return "Please make all selections to generate prefix.";
                 }
 
-                const dtString = `${dateVal}T${hourVal}:${minuteVal}:00.000Z`;
-                const dt = new Date(dtString);
+                // Construct a Date object for deriving year, dayOfYear, hour (for S3 path)
+                const dtStringForS3Path = `${dateVal}T${hourVal}:00:00Z`; // Only hour matters for S3 path prefix
+                const dtForS3Path = new Date(dtStringForS3Path);
 
-                if (isNaN(dt.getTime())) {
-                    return "Invalid date or time. Please correct.";
+                if (isNaN(dtForS3Path.getTime())) {
+                    console.error("Invalid dtStringForS3Path in getCurrentS3QueryPrefix:", dtStringForS3Path);
+                    return "Invalid date or time for S3 prefix calculation. Please correct.";
                 }
 
-                const year = dt.getUTCFullYear();
-                const month = dt.getUTCMonth();
-                const day = dt.getUTCDate();
-
-                const dateForDayOfYear = new Date(Date.UTC(year, month, day));
-                const startOfYear = new Date(Date.UTC(year, 0, 1));
-                const diff = dateForDayOfYear.getTime() - startOfYear.getTime();
-                const oneDay = 1000 * 60 * 60 * 24;
-                const dayOfYear = Math.floor(diff / oneDay) + 1;
-                
-                const hour = dt.getUTCHours();
+                const year = dtForS3Path.getUTCFullYear();
+                const dayOfYear = Math.floor((dtForS3Path.getTime() - new Date(Date.UTC(year, 0, 1)).getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                const hour = dtForS3Path.getUTCHours();
                 const coverageRegion = selectedCoverageRegionRadio.value;
 
                 let finalProductTypeForPrefix = baseProductType;
@@ -712,9 +723,44 @@
                 return `${finalProductTypeForPrefix}/${year}/${String(dayOfYear).padStart(3, '0')}/${String(hour).padStart(2, '0')}/`;
             }
 
-            // Function to update the displayed prefix
+            // Function to update the displayed S3 prefix for QC (includes time delta info for user)
             function updatePrefixDisplay() {
-                currentPrefixDisplay.textContent = getCurrentS3Prefix();
+                const selectedSatelliteRadio = document.querySelector('input[name="satellite"]:checked');
+                const baseProductType = productTypeSelect.value;
+                const selectedCoverageRegionRadio = document.querySelector('input[name="coverageRegion"]:checked');
+                const dateVal = dateInput.value;
+                const hourVal = hourSelect.value;
+                const minuteVal = minuteSelect.value;
+                const timeDelta = timeDeltaSlider.value;
+
+                if (!selectedSatelliteRadio || !selectedCoverageRegionRadio || !dateVal || !hourVal || !minuteVal) {
+                    currentPrefixDisplay.textContent = "Please make all selections to generate prefix.";
+                    return;
+                }
+
+                const s3PathPrefix = getCurrentS3QueryPrefix(); // Get the actual S3 path prefix
+                currentPrefixDisplay.textContent = `${s3PathPrefix} (Filtering around ${hourVal}:${minuteVal} +/- ${timeDelta} min)`;
+            }
+
+            // Function to extract time from GOES filename (e.g., OR_ABI-L1b-RadF-M6C01_G17_s20231640000210_e20231640000210_c20231640000302.nc)
+            // It expects a filename and comes back with an object { hour: number, minute: number, second: number } or null if not found
+            function parseTimeFromFilename(filename) {
+                // Modified regex: _s followed by 7 digits (YYYYDDD), then captures 6 digits (HHMMSS),
+                // then matches one or more digits (fff, for fractional seconds).
+                const startTimeMatch = filename.match(/_s\d{7}(\d{6})\d+/); // Removed trailing underscore from regex
+                if (startTimeMatch && startTimeMatch[1]) {
+                    const timeString = startTimeMatch[1]; // e.g., "000021"
+                    const hour = parseInt(timeString.substring(0, 2), 10);
+                    const minute = parseInt(timeString.substring(2, 4), 10);
+                    const second = parseInt(timeString.substring(4, 6), 10);
+                    // Check for valid hour/minute/second
+                    if (!isNaN(hour) && hour >= 0 && hour <= 23 &&
+                        !isNaN(minute) && minute >= 0 && minute <= 59 &&
+                        !isNaN(second) && second >= 0 && second <= 59) {
+                        return { hour, minute, second };
+                    }
+                }
+                return null;
             }
 
             // Function to show/hide and enable/disable specific channel selectors and coverage region
@@ -788,76 +834,70 @@
 
             queryButton.addEventListener('click', async () => {
                 const selectedSatelliteRadio = document.querySelector('input[name="satellite"]:checked');
-                const baseProductType = productTypeSelect.value; // This is the base product type (e.g., ABI-L1b-Rad)
+                const baseProductType = productTypeSelect.value;
                 const selectedCoverageRegionRadio = document.querySelector('input[name="coverageRegion"]:checked');
 
                 if (!selectedSatelliteRadio) {
                     displayError("Please select a Satellite (GOES-16, GOES-17, GOES-18, or GOES-19).");
                     return;
                 }
-                // Only require coverage region for ABI products, and if the coverage region section is visible
                 if (baseProductType.startsWith('ABI-L') && coverageRegionRadiosDiv.style.display !== 'none' && !selectedCoverageRegionRadio) {
                     displayError("Please select a Coverage Region.");
                     return;
                 }
 
                 const bucketName = selectedSatelliteRadio.value;
-                const coverageRegion = selectedCoverageRegionRadio ? selectedCoverageRegionRadio.value : 'N/A'; // Handle non-ABI products
+                const coverageRegion = selectedCoverageRegionRadio ? selectedCoverageRegionRadio.value : 'N/A';
 
                 const dateVal = dateInput.value;
                 const hourVal = hourSelect.value;
                 const minuteVal = minuteSelect.value;
+                const timeDelta = parseInt(timeDeltaSlider.value, 10);
 
-                if (!dateVal || !hourVal || !minuteVal) {
-                    displayError("Please select a valid date and time.");
+                const selectedHour = parseInt(hourVal, 10);
+                const selectedMinute = parseInt(minuteVal, 10);
+
+
+                if (!dateVal || !hourVal || !minuteVal || isNaN(timeDelta)) {
+                    displayError("Please ensure Date, Hour, Minute, and Time Delta are all selected.");
                     return;
                 }
-
-                const dtString = `${dateVal}T${hourVal}:${minuteVal}:00.000Z`;
-                const dt = new Date(dtString);
-
-                if (isNaN(dt.getTime())) {
-                    displayError("Invalid date or time format. Please ensure they are correct.");
-                    return;
-                }
-
-                const year = dt.getUTCFullYear();
-                const month = dt.getUTCMonth();
-                const day = dt.getUTCDate();
-
-                const dateForDayOfYear = new Date(Date.UTC(year, month, day));
-                const startOfYear = new Date(Date.UTC(year, 0, 1));
-                const diff = dateForDayOfYear.getTime() - startOfYear.getTime();
-                const oneDay = 1000 * 60 * 60 * 24;
-                const dayOfYear = Math.floor(diff / oneDay) + 1;
                 
-                const hour = dt.getUTCHours();
+                // Construct the S3 prefix for the actual query (without time delta filtering)
+                const dtForS3Path = new Date(`${dateVal}T${hourVal}:00:00Z`); // Time part is only for year, dayOfYear, hour components of S3 prefix
+                if (isNaN(dtForS3Path.getTime())) {
+                    console.error("Invalid Date object for S3 path calculation from:", `${dateVal}T${hourVal}:00:00Z`);
+                    displayError("Invalid date or time for S3 path. Please verify your selections.");
+                    return;
+                }
+
+                const year = dtForS3Path.getUTCFullYear();
+                const dayOfYear = Math.floor((dtForS3Path.getTime() - new Date(Date.UTC(year, 0, 1)).getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                const hour = dtForS3Path.getUTCHours();
 
                 let finalProductTypeForPrefix = baseProductType;
-                // Append suffix based on coverage region for ABI products for the S3 path
                 if (baseProductType.startsWith('ABI-L')) {
                     if (coverageRegion === 'fd') {
                         finalProductTypeForPrefix += 'F';
                     } else if (coverageRegion === 'conus') {
                         finalProductTypeForPrefix += 'C';
                     } else if (coverageRegion === 'meso1' || coverageRegion === 'meso2') {
-                        finalProductTypeForPrefix += 'M'; // Mesoscale products use 'M' in the prefix path
+                        finalProductTypeForPrefix += 'M';
                     }
                 }
 
                 const prefix = `${finalProductTypeForPrefix}/${year}/${String(dayOfYear).padStart(3, '0')}/${String(hour).padStart(2, '0')}/`;
-                const s3Region = 'us-east-1'; // All GOES buckets are in us-east-1
+                const s3Region = 'us-east-1';
 
                 resultsDiv.innerHTML = 'Querying S3...';
                 resultsDiv.classList.remove('text-red-500');
                 hideError();
-                hideInstruction(); // Hide general instruction message
-                hideMyHDF5Instruction(); // Hide myHDF5 specific instruction message
+                hideInstruction();
+                hideMyHDF5Instruction();
                 showLoading();
                 downloadButton.style.display = 'none';
-                selectAllButton.style.display = 'none'; // Hide select all button initially
-                openMyHDF5Button.style.display = 'none'; // Hide new button initially
-
+                selectAllButton.style.display = 'none';
+                openMyHDF5Button.style.display = 'none';
 
                 let allFoundKeys = [];
                 let continuationToken = undefined;
@@ -867,10 +907,9 @@
                 console.log(`  Satellite: ${selectedSatelliteRadio.label}`);
                 console.log(`  Base Product Type (dropdown): ${baseProductType}`);
                 console.log(`  Coverage Region: ${coverageRegion}`);
-                console.log(`  Final Product Type for S3 Prefix: ${finalProductTypeForPrefix}`);
-                console.log(`  Input Date (UTC): ${dateVal} ${hourVal}:${minuteVal}`);
+                console.log(`  Final Product Type for S3 Prefix (used in query): ${finalProductTypeForPrefix}`);
                 console.log(`  Calculated UTC Year: ${year}, Day of Year: ${dayOfYear}, Hour: ${hour}`);
-                console.log(`  S3 Prefix: ${prefix}`);
+                console.log(`  S3 Query Prefix: ${prefix}`);
                 console.log(`  Bucket: ${bucketName}, Region: ${s3Region}`);
 
                 try {
@@ -925,21 +964,36 @@
                         console.log(`NextContinuationToken: ${continuationToken}`);
                     }
 
-                    console.log("--- All keys found from S3 (before filtering): ---");
+                    console.log("--- All keys found from S3 (before client-side filtering): ---");
                     allFoundKeys.forEach(key => console.log(key));
                     console.log("----------------------------------------------------------");
 
-                    let keysToDisplay = allFoundKeys;
+                    // CLIENT-SIDE FILTERING: Apply time delta filtering to the full list of keys
+                    const targetTimeInMinutes = selectedHour * 60 + selectedMinute;
+                    const lowerBoundInMinutes = targetTimeInMinutes - timeDelta;
+                    const upperBoundInMinutes = targetTimeInMinutes + timeDelta;
+
+                    let keysToDisplay = allFoundKeys.filter(key => {
+                        const filename = key.split('/').pop();
+                        const timeInFilename = parseTimeFromFilename(filename);
+
+                        if (timeInFilename) {
+                            const fileTimeInMinutes = timeInFilename.hour * 60 + timeInFilename.minute;
+                            // Check if the file's time falls within the allowed delta range
+                            // This comparison should now work as timeInFilename will be valid
+                            return fileTimeInMinutes >= lowerBoundInMinutes && fileTimeInMinutes <= upperBoundInMinutes;
+                        }
+                        console.warn(`Could not parse time from filename: ${filename}`); // Log if parsing fails
+                        return false; // Filter out keys where time parsing failed
+                    });
+                    console.log(`Filtered by time delta (${timeDelta} min around ${selectedHour}:${selectedMinute}). Original ${allFoundKeys.length}, Filtered ${keysToDisplay.length} keys.`);
                     
-                    // Apply Mesoscale filtering for M1/M2 in filename if a mesoscale region was selected
+                    // Apply Mesoscale filtering (still needed even after time delta)
                     if (baseProductType.startsWith('ABI-L') && (coverageRegion === 'meso1' || coverageRegion === 'meso2')) {
                         const targetMesoscaleSuffix = coverageRegion === 'meso1' ? 'M1-' : 'M2-';
                         const originalCount = keysToDisplay.length;
                         keysToDisplay = keysToDisplay.filter(key => {
-                            // Construct the specific pattern to look for within the filename
-                            // e.g., "ABI-L1b-RadM1-"
-                            const productTypeInKey = key.split('/')[0]; // Get the product type part from the key
-                            // Check if the key contains the base product type followed by the specific mesoscale suffix
+                            const productTypeInKey = key.split('/')[0];
                             return key.includes(`${baseProductType}${targetMesoscaleSuffix}`);
                         });
                         console.log(`Filtered for Mesoscale ${targetMesoscaleSuffix.replace('-', '')} with pattern: ${baseProductType}${targetMesoscaleSuffix}. Reduced from ${originalCount} to ${keysToDisplay.length} keys.`);
@@ -947,23 +1001,18 @@
                         console.log("No Mesoscale M1/M2 filename filtering applied.");
                     }
 
-
-                    // Apply Channel filtering if applicable
+                    // Apply Channel filtering
                     const selectedChannels = Array.from(document.querySelectorAll('#channelCheckboxes input[type="checkbox"]:checked'))
                                                 .map(cb => cb.value);
-                    
                     const relevantProductsForChannel = ["ABI-L1b-Rad", "ABI-L2-CMIP", "ABI-L2-DMW", "ABI-L2-DMWV"];
 
                     if (relevantProductsForChannel.includes(baseProductType) && selectedChannels.length > 0) {
                         const originalCount = keysToDisplay.length;
                         keysToDisplay = keysToDisplay.filter(key => {
-                            // Check if the key contains any of the selected channel patterns (e.g., C01_, C02_)
                             return selectedChannels.some(channel => key.includes(`C${channel}_`));
                         });
                         console.log(`Filtered for channels: ${selectedChannels.join(', ')}. Reduced from ${originalCount} to ${keysToDisplay.length} keys.`);
                     } else if (relevantProductsForChannel.includes(baseProductType) && selectedChannels.length === 0 && channelSelectionGroup.style.display === 'block') {
-                        // This case means channel selector is visible but nothing is selected.
-                        // As per new instruction, if no channels are selected, all relevant channels are included.
                         console.log("Channel selector visible but no channels selected. Displaying all relevant keys for this product type.");
                     } else {
                         console.log("Channel filtering not applicable for this product type.");
@@ -974,24 +1023,24 @@
                     if (keysToDisplay.length > 0) {
                         displayResults(keysToDisplay);
                         downloadButton.style.display = 'flex';
-                        selectAllButton.style.display = 'flex'; // Show select all button
-                        selectAllButton.textContent = 'Select All'; // Reset button text
-                        openMyHDF5Button.style.display = 'flex'; // Show new button
-                        showMyHDF5Instruction(); // Show myHDF5 specific instruction message
+                        selectAllButton.style.display = 'flex';
+                        selectAllButton.textContent = 'Select All';
+                        openMyHDF5Button.style.display = 'flex';
+                        showMyHDF5Instruction();
                     } else {
-                        displayResults("No object keys found for the specified criteria. Please double-check the date/time and product type. Data for the very latest hours might not be immediately available. You can check NOAA's GOES data availability for more info.");
-                        selectAllButton.style.display = 'none'; // Hide select all button if no results
-                        openMyHDF5Button.style.display = 'none'; // Hide new button if no results
-                        hideMyHDF5Instruction(); // Hide myHDF5 specific instruction message
+                        displayResults("No object keys found for the specified criteria within the selected time window. Please double-check the date/time, product type, and time delta. Data for the very latest hours might not be immediately available. You can check NOAA's GOES data availability for more info.");
+                        selectAllButton.style.display = 'none';
+                        openMyHDF5Button.style.display = 'none';
+                        hideMyHDF5Instruction();
                     }
 
                 } catch (error) {
                     hideLoading();
                     console.error("Error querying S3:", error);
                     displayError(`Failed to query S3: ${error.message || "An unknown error occurred."}`);
-                    selectAllButton.style.display = 'none'; // Hide select all button on error
-                    openMyHDF5Button.style.display = 'none'; // Hide new button on error
-                    hideMyHDF5Instruction(); // Hide myHDF5 specific instruction message
+                    selectAllButton.style.display = 'none';
+                    openMyHDF5Button.style.display = 'none';
+                    hideMyHDF5Instruction();
                 }
             });
 
@@ -1003,8 +1052,8 @@
                 }
 
                 hideError();
-                hideInstruction(); // Hide general instruction message
-                hideMyHDF5Instruction(); // Hide myHDF5 specific instruction message
+                hideInstruction();
+                hideMyHDF5Instruction();
 
                 if (selectedCheckboxes.length > 1) {
                     resultsDiv.innerHTML = `<div class="text-blue-600 font-medium mb-4">Starting ${selectedCheckboxes.length} downloads... Please check your browser's download bar or pop-up blocker if you don't see them.</div>`;
@@ -1019,7 +1068,7 @@
                     const checkbox = selectedCheckboxes[i];
                     const s3Key = checkbox.value;
                     const selectedSatelliteRadio = document.querySelector('input[name="satellite"]:checked');
-                    const bucketName = selectedSatelliteRadio ? selectedSatelliteRadio.value : 'noaa-goes19'; // Fallback to GOES-19
+                    const bucketName = selectedSatelliteRadio ? selectedSatelliteRadio.value : 'noaa-goes19';
                     const s3Region = 'us-east-1';
                     const downloadUrl = `https://${bucketName}.s3.${s3Region}.amazonaws.com/${s3Key}`;
                     
@@ -1081,12 +1130,12 @@
 
                 hideError();
                 hideInstruction();
-                hideMyHDF5Instruction(); // Hide myHDF5 specific instruction message
+                hideMyHDF5Instruction();
 
                 const checkbox = selectedCheckboxes[0];
                 const s3Key = checkbox.value;
                 const selectedSatelliteRadio = document.querySelector('input[name="satellite"]:checked');
-                const bucketName = selectedSatelliteRadio ? selectedSatelliteRadio.value : 'noaa-goes19'; // Fallback to GOES-19
+                const bucketName = selectedSatelliteRadio ? selectedSatelliteRadio.value : 'noaa-goes19';
                 const s3Region = 'us-east-1';
                 const fileUrl = `https://${bucketName}.s3.${s3Region}.amazonaws.com/${s3Key}`;
 
@@ -1142,11 +1191,11 @@
                 errorMessageDiv.style.display = 'block';
                 resultsDiv.innerHTML = '';
                 downloadButton.style.display = 'none';
-                selectAllButton.style.display = 'none'; // Hide select all button on error
-                openMyHDF5Button.style.display = 'none'; // Hide new button on error
+                selectAllButton.style.display = 'none';
+                openMyHDF5Button.style.display = 'none';
                 hideLoading();
-                hideInstruction(); // Hide general instruction message on error
-                hideMyHDF5Instruction(); // Hide myHDF5 specific instruction message on error
+                hideInstruction();
+                hideMyHDF5Instruction();
             }
 
             function hideError() {
