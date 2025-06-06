@@ -501,7 +501,7 @@
             const myHDF5InstructionDiv = document.getElementById('myHDF5Instruction');
             const currentPrefixDisplay = document.getElementById('currentPrefix');
             const channelSelectionGroup = document.getElementById('channelSelectionGroup');
-            const channelCheckboxesDiv = document = document.getElementById('channelCheckboxes');
+            const channelCheckboxesDiv = document.getElementById('channelCheckboxes');
             const selectAllChannelsButton = document.getElementById('selectAllChannelsButton');
             const clearAllChannelsButton = document.getElementById('clearAllChannelsButton');
 
@@ -863,30 +863,54 @@
                     return;
                 }
                 
-                // Construct the S3 prefix for the actual query (without time delta filtering)
-                const dtForS3Path = new Date(`${dateVal}T${hourVal}:00:00Z`); // Time part is only for year, dayOfYear, hour components of S3 prefix
-                if (isNaN(dtForS3Path.getTime())) {
-                    console.error("Invalid Date object for S3 path calculation from:", `${dateVal}T${hourVal}:00:00Z`);
-                    displayError("Invalid date or time for S3 path. Please verify your selections.");
+                // Construct the target Date object for time calculations
+                const targetDt = new Date(`${dateVal}T${hourVal}:${minuteVal}:00Z`);
+                if (isNaN(targetDt.getTime())) {
+                    console.error("Invalid targetDt:", `${dateVal}T${hourVal}:${minuteVal}:00Z`);
+                    displayError("Invalid date or time format. Please verify your selections.");
                     return;
                 }
 
-                const year = dtForS3Path.getUTCFullYear();
-                const dayOfYear = Math.floor((dtForS3Path.getTime() - new Date(Date.UTC(year, 0, 1)).getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                const hour = dtForS3Path.getUTCHours();
+                // Calculate the lower and upper bounds of the time window for filtering
+                const lowerBoundDt = new Date(targetDt.getTime() - timeDelta * 60 * 1000);
+                const upperBoundDt = new Date(targetDt.getTime() + timeDelta * 60 * 1000);
+
+                let uniqueHourlyPrefixSegments = new Set(); // Storesപ്പെടെ/DDD/HH/
+
+                // Iterate through hours from the lower bound to the upper bound (inclusive)
+                let currentIterDt = new Date(Date.UTC(lowerBoundDt.getUTCFullYear(), lowerBoundDt.getUTCMonth(), lowerBoundDt.getUTCDate(), lowerBoundDt.getUTCHours()));
+                
+                // Loop while the current iterated hour's start is less than or equal to the upperBoundDt's time
+                while (currentIterDt.getTime() <= upperBoundDt.getTime()) {
+                    const year = currentIterDt.getUTCFullYear();
+                    // Calculate day of year based on UTC values
+                    const startOfYear = Date.UTC(year, 0, 1);
+                    const diff = currentIterDt.getTime() - startOfYear;
+                    const oneDay = 1000 * 60 * 60 * 24;
+                    const dayOfYear = Math.floor(diff / oneDay) + 1;
+                    const hour = currentIterDt.getUTCHours();
+                    
+                    uniqueHourlyPrefixSegments.add(`${year}/${String(dayOfYear).padStart(3, '0')}/${String(hour).padStart(2, '0')}/`);
+
+                    // Move to the next hour
+                    currentIterDt.setUTCHours(currentIterDt.getUTCHours() + 1);
+                }
+
+                const hourlyPrefixesToQuery = Array.from(uniqueHourlyPrefixSegments);
+
 
                 let finalProductTypeForPrefix = baseProductType;
+                // Append suffix based on coverage region for ABI products for the S3 path
                 if (baseProductType.startsWith('ABI-L')) {
                     if (coverageRegion === 'fd') {
                         finalProductTypeForPrefix += 'F';
                     } else if (coverageRegion === 'conus') {
                         finalProductTypeForPrefix += 'C';
                     } else if (coverageRegion === 'meso1' || coverageRegion === 'meso2') {
-                        finalProductTypeForPrefix += 'M';
+                        finalProductTypeForPrefix += 'M'; // Mesoscale products use 'M' in the prefix path
                     }
                 }
 
-                const prefix = `${finalProductTypeForPrefix}/${year}/${String(dayOfYear).padStart(3, '0')}/${String(hour).padStart(2, '0')}/`;
                 const s3Region = 'us-east-1';
 
                 resultsDiv.innerHTML = 'Querying S3...';
@@ -900,327 +924,328 @@
                 openMyHDF5Button.style.display = 'none';
 
                 let allFoundKeys = [];
-                let continuationToken = undefined;
-                let isTruncated = true;
 
                 console.log(`Attempting to query S3 for:`);
                 console.log(`  Satellite: ${selectedSatelliteRadio.label}`);
                 console.log(`  Base Product Type (dropdown): ${baseProductType}`);
                 console.log(`  Coverage Region: ${coverageRegion}`);
-                console.log(`  Final Product Type for S3 Prefix (used in query): ${finalProductTypeForPrefix}`);
-                console.log(`  Calculated UTC Year: ${year}, Day of Year: ${dayOfYear}, Hour: ${hour}`);
-                console.log(`  S3 Query Prefix: ${prefix}`);
+                console.log(`  Final Product Type for S3 Path: ${finalProductTypeForPrefix}`);
+                console.log(`  Hourly prefixes to query:`, hourlyPrefixesToQuery);
                 console.log(`  Bucket: ${bucketName}, Region: ${s3Region}`);
 
-                try {
-                    while (isTruncated) {
-                        let url = `https://${bucketName}.s3.${s3Region}.amazonaws.com/?list-type=2&prefix=${encodeURIComponent(prefix)}`;
-                        if (continuationToken) {
-                            url += `&continuation-token=${encodeURIComponent(continuationToken)}`;
-                        }
+                for (const hourSegment of hourlyPrefixesToQuery) {
+                    const fullS3Prefix = `${finalProductTypeForPrefix}/${hourSegment}`;
+                    let continuationToken = undefined;
+                    let isTruncatedForThisHour = true;
 
-                        console.log(`Fetching URL: ${url}`);
-                        const response = await fetch(url);
-
-                        if (!response.ok) {
-                            const errorText = await response.text();
-                            throw new Error(`HTTP error! Status: ${response.status}, Body: ${errorText}`);
-                        }
-
-                        const responseText = await response.text();
-                        console.log("Raw S3 XML Response:", responseText);
-                        
-                        const parser = new DOMParser();
-                        const xmlDoc = parser.parseFromString(responseText, "application/xml");
-
-                        const errorNode = xmlDoc.querySelector('Error');
-                        if (errorNode) {
-                            const errorCode = errorNode.querySelector('Code')?.textContent;
-                            const errorMessage = errorNode.querySelector('Message')?.textContent;
-                            throw new Error(`S3 Error: ${errorCode} - ${errorMessage}`);
-                        }
-
-                        const contents = xmlDoc.querySelectorAll('Contents');
-                        console.log(`Found ${contents.length} 'Contents' nodes in XML.`);
-                        
-                        if (contents.length === 0 && !isTruncated) {
-                            console.warn("No 'Contents' found in the S3 response for this prefix. This might mean no data exists for the selected time/product, or the prefix is incorrect.");
-                        }
-
-                        contents.forEach(item => {
-                            const key = item.querySelector('Key')?.textContent;
-                            if (key) {
-                                allFoundKeys.push(key);
-                                console.log(`  Found key: ${key}`);
+                    try {
+                        while (isTruncatedForThisHour) {
+                            let url = `https://${bucketName}.s3.${s3Region}.amazonaws.com/?list-type=2&prefix=${encodeURIComponent(fullS3Prefix)}`;
+                            if (continuationToken) {
+                                url += `&continuation-token=${encodeURIComponent(continuationToken)}`;
                             }
-                        });
 
-                        const isTruncatedNode = xmlDoc.querySelector('IsTruncated');
-                        isTruncated = isTruncatedNode && isTruncatedNode.textContent === 'true';
-                        console.log(`IsTruncated: ${isTruncated}`);
+                            console.log(`Fetching URL for prefix: ${fullS3Prefix}, continuationToken: ${continuationToken || 'none'}`);
+                            const response = await fetch(url);
 
-                        const nextContinuationTokenNode = xmlDoc.querySelector('NextContinuationToken');
-                        continuationToken = nextContinuationTokenNode ? nextContinuationTokenNode.textContent : undefined;
-                        console.log(`NextContinuationToken: ${continuationToken}`);
-                    }
+                            if (!response.ok) {
+                                if (response.status === 404) {
+                                    console.warn(`S3 prefix not found (404) for: ${fullS3Prefix}. This is expected for future or empty hours. Ignoring.`);
+                                    break; // Stop fetching for this specific hourly prefix
+                                } else {
+                                    const errorText = await response.text();
+                                    throw new Error(`HTTP error! Status: ${response.status}, Body: ${errorText} for prefix: ${fullS3Prefix}`);
+                                }
+                            }
 
-                    console.log("--- All keys found from S3 (before client-side filtering): ---");
-                    allFoundKeys.forEach(key => console.log(key));
-                    console.log("----------------------------------------------------------");
+                            const responseText = await response.text();
+                            const parser = new DOMParser();
+                            const xmlDoc = parser.parseFromString(responseText, "application/xml");
 
-                    // CLIENT-SIDE FILTERING: Apply time delta filtering to the full list of keys
-                    const targetTimeInMinutes = selectedHour * 60 + selectedMinute;
-                    const lowerBoundInMinutes = targetTimeInMinutes - timeDelta;
-                    const upperBoundInMinutes = targetTimeInMinutes + timeDelta;
+                            const errorNode = xmlDoc.querySelector('Error');
+                            if (errorNode) {
+                                const errorCode = errorNode.querySelector('Code')?.textContent;
+                                const errorMessage = errorNode.querySelector('Message')?.textContent;
+                                console.warn(`S3 API Error for ${fullS3Prefix}: ${errorCode} - ${errorMessage}. Ignoring.`);
+                                break; // Stop fetching for this specific hourly prefix
+                            }
 
-                    let keysToDisplay = allFoundKeys.filter(key => {
-                        const filename = key.split('/').pop();
-                        const timeInFilename = parseTimeFromFilename(filename);
+                            const contents = xmlDoc.querySelectorAll('Contents');
+                            contents.forEach(item => {
+                                const key = item.querySelector('Key')?.textContent;
+                                if (key) {
+                                    allFoundKeys.push(key);
+                                }
+                            });
 
-                        if (timeInFilename) {
-                            const fileTimeInMinutes = timeInFilename.hour * 60 + timeInFilename.minute;
-                            // Check if the file's time falls within the allowed delta range
-                            // This comparison should now work as timeInFilename will be valid
-                            return fileTimeInMinutes >= lowerBoundInMinutes && fileTimeInMinutes <= upperBoundInMinutes;
+                            const isTruncatedNode = xmlDoc.querySelector('IsTruncated');
+                            isTruncatedForThisHour = isTruncatedNode && isTruncatedNode.textContent === 'true';
+
+                            const nextContinuationTokenNode = xmlDoc.querySelector('NextContinuationToken');
+                            continuationToken = nextContinuationTokenNode ? nextContinuationTokenNode.textContent : undefined;
                         }
-                        console.warn(`Could not parse time from filename: ${filename}`); // Log if parsing fails
-                        return false; // Filter out keys where time parsing failed
+                    } catch (error) {
+                        console.error(`Error during S3 query for prefix ${fullS3Prefix}:`, error);
+                        // Continue to the next hourly prefix even if one fails
+                    }
+                }
+
+
+                console.log("--- All keys found from S3 (before client-side filtering): ---");
+                allFoundKeys.forEach(key => console.log(key));
+                console.log("----------------------------------------------------------");
+
+                // CLIENT-SIDE FILTERING: Apply time delta filtering to the full list of keys
+                const targetTimeInMinutes = selectedHour * 60 + selectedMinute;
+                const lowerBoundInMinutes = targetTimeInMinutes - timeDelta;
+                const upperBoundInMinutes = targetTimeInMinutes + timeDelta;
+
+                let keysToDisplay = allFoundKeys.filter(key => {
+                    const filename = key.split('/').pop();
+                    const timeInFilename = parseTimeFromFilename(filename);
+
+                    if (timeInFilename) {
+                        const fileTimeInMinutes = timeInFilename.hour * 60 + timeInFilename.minute;
+                        return fileTimeInMinutes >= lowerBoundInMinutes && fileTimeInMinutes <= upperBoundInMinutes;
+                    }
+                    console.warn(`Could not parse time from filename: ${filename}`); // Log if parsing fails
+                    return false; // Filter out keys where time parsing failed
+                });
+                console.log(`Filtered by time delta (${timeDelta} min around ${selectedHour}:${selectedMinute}). Original ${allFoundKeys.length}, Filtered ${keysToDisplay.length} keys.`);
+                
+                // Apply Mesoscale filtering (still needed even after time delta)
+                if (baseProductType.startsWith('ABI-L') && (coverageRegion === 'meso1' || coverageRegion === 'meso2')) {
+                    const targetMesoscaleSuffix = coverageRegion === 'meso1' ? 'M1-' : 'M2-';
+                    const originalCount = keysToDisplay.length;
+                    keysToDisplay = keysToDisplay.filter(key => {
+                        const productTypeInKey = key.split('/')[0];
+                        return key.includes(`${baseProductType}${targetMesoscaleSuffix}`);
                     });
-                    console.log(`Filtered by time delta (${timeDelta} min around ${selectedHour}:${selectedMinute}). Original ${allFoundKeys.length}, Filtered ${keysToDisplay.length} keys.`);
-                    
-                    // Apply Mesoscale filtering (still needed even after time delta)
-                    if (baseProductType.startsWith('ABI-L') && (coverageRegion === 'meso1' || coverageRegion === 'meso2')) {
-                        const targetMesoscaleSuffix = coverageRegion === 'meso1' ? 'M1-' : 'M2-';
-                        const originalCount = keysToDisplay.length;
-                        keysToDisplay = keysToDisplay.filter(key => {
-                            const productTypeInKey = key.split('/')[0];
-                            return key.includes(`${baseProductType}${targetMesoscaleSuffix}`);
-                        });
-                        console.log(`Filtered for Mesoscale ${targetMesoscaleSuffix.replace('-', '')} with pattern: ${baseProductType}${targetMesoscaleSuffix}. Reduced from ${originalCount} to ${keysToDisplay.length} keys.`);
-                    } else {
-                        console.log("No Mesoscale M1/M2 filename filtering applied.");
-                    }
+                    console.log(`Filtered for Mesoscale ${targetMesoscaleSuffix.replace('-', '')} with pattern: ${baseProductType}${targetMesoscaleSuffix}. Reduced from ${originalCount} to ${keysToDisplay.length} keys.`);
+                } else {
+                    console.log("No Mesoscale M1/M2 filename filtering applied.");
+                }
 
-                    // Apply Channel filtering
-                    const selectedChannels = Array.from(document.querySelectorAll('#channelCheckboxes input[type="checkbox"]:checked'))
-                                                .map(cb => cb.value);
-                    const relevantProductsForChannel = ["ABI-L1b-Rad", "ABI-L2-CMIP", "ABI-L2-DMW", "ABI-L2-DMWV"];
+                // Apply Channel filtering
+                const selectedChannels = Array.from(document.querySelectorAll('#channelCheckboxes input[type="checkbox"]:checked'))
+                                            .map(cb => cb.value);
+                const relevantProductsForChannel = ["ABI-L1b-Rad", "ABI-L2-CMIP", "ABI-L2-DMW", "ABI-L2-DMWV"];
 
-                    if (relevantProductsForChannel.includes(baseProductType) && selectedChannels.length > 0) {
-                        const originalCount = keysToDisplay.length;
-                        keysToDisplay = keysToDisplay.filter(key => {
-                            return selectedChannels.some(channel => key.includes(`C${channel}_`));
-                        });
-                        console.log(`Filtered for channels: ${selectedChannels.join(', ')}. Reduced from ${originalCount} to ${keysToDisplay.length} keys.`);
-                    } else if (relevantProductsForChannel.includes(baseProductType) && selectedChannels.length === 0 && channelSelectionGroup.style.display === 'block') {
-                        console.log("Channel selector visible but no channels selected. Displaying all relevant keys for this product type.");
-                    } else {
-                        console.log("Channel filtering not applicable for this product type.");
-                    }
+                if (relevantProductsForChannel.includes(baseProductType) && selectedChannels.length > 0) {
+                    const originalCount = keysToDisplay.length;
+                    keysToDisplay = keysToDisplay.filter(key => {
+                        return selectedChannels.some(channel => key.includes(`C${channel}_`));
+                    });
+                    console.log(`Filtered for channels: ${selectedChannels.join(', ')}. Reduced from ${originalCount} to ${keysToDisplay.length} keys.`);
+                } else if (relevantProductsForChannel.includes(baseProductType) && selectedChannels.length === 0 && channelSelectionGroup.style.display === 'block') {
+                    console.log("Channel selector visible but no channels selected. Displaying all relevant keys for this product type.");
+                } else {
+                    console.log("Channel filtering not applicable for this product type.");
+                }
 
 
-                    hideLoading();
-                    if (keysToDisplay.length > 0) {
-                        displayResults(keysToDisplay);
-                        downloadButton.style.display = 'flex';
-                        selectAllButton.style.display = 'flex';
-                        selectAllButton.textContent = 'Select All';
-                        openMyHDF5Button.style.display = 'flex';
-                        showMyHDF5Instruction();
-                    } else {
-                        displayResults("No object keys found for the specified criteria within the selected time window. Please double-check the date/time, product type, and time delta. Data for the very latest hours might not be immediately available. You can check NOAA's GOES data availability for more info.");
-                        selectAllButton.style.display = 'none';
-                        openMyHDF5Button.style.display = 'none';
-                        hideMyHDF5Instruction();
-                    }
-
-                } catch (error) {
-                    hideLoading();
-                    console.error("Error querying S3:", error);
-                    displayError(`Failed to query S3: ${error.message || "An unknown error occurred."}`);
+                hideLoading();
+                if (keysToDisplay.length > 0) {
+                    displayResults(keysToDisplay);
+                    downloadButton.style.display = 'flex';
+                    selectAllButton.style.display = 'flex';
+                    selectAllButton.textContent = 'Select All';
+                    openMyHDF5Button.style.display = 'flex';
+                    showMyHDF5Instruction();
+                } else {
+                    displayResults("No object keys found for the specified criteria within the selected time window. Please double-check the date/time, product type, and time delta. Data for the very latest hours might not be immediately available. You can check NOAA's GOES data availability for more info.");
                     selectAllButton.style.display = 'none';
                     openMyHDF5Button.style.display = 'none';
                     hideMyHDF5Instruction();
                 }
-            });
 
-            downloadButton.addEventListener('click', async () => {
-                const selectedCheckboxes = resultsDiv.querySelectorAll('input[type="checkbox"]:checked');
-                if (selectedCheckboxes.length === 0) {
-                    displayError("Please select at least one file to download.");
-                    return;
-                }
-
-                hideError();
-                hideInstruction();
+            } catch (error) {
+                hideLoading();
+                console.error("Error querying S3:", error);
+                displayError(`Failed to query S3: ${error.message || "An unknown error occurred."}`);
+                selectAllButton.style.display = 'none';
+                openMyHDF5Button.style.display = 'none';
                 hideMyHDF5Instruction();
+            }
+        });
 
-                if (selectedCheckboxes.length > 1) {
-                    resultsDiv.innerHTML = `<div class="text-blue-600 font-medium mb-4">Starting ${selectedCheckboxes.length} downloads... Please check your browser's download bar or pop-up blocker if you don't see them.</div>`;
-                    setTimeout(() => {
-                        const currentKeys = Array.from(resultsDiv.querySelectorAll('.selectable-list-item label')).map(label => label.textContent);
-                        displayResults(currentKeys);
-                    }, 3000);
-                }
+        downloadButton.addEventListener('click', async () => {
+            const selectedCheckboxes = resultsDiv.querySelectorAll('input[type="checkbox"]:checked');
+            if (selectedCheckboxes.length === 0) {
+                displayError("Please select at least one file to download.");
+                return;
+            }
 
+            hideError();
+            hideInstruction();
+            hideMyHDF5Instruction();
 
-                for (let i = 0; i < selectedCheckboxes.length; i++) {
-                    const checkbox = selectedCheckboxes[i];
-                    const s3Key = checkbox.value;
-                    const selectedSatelliteRadio = document.querySelector('input[name="satellite"]:checked');
-                    const bucketName = selectedSatelliteRadio ? selectedSatelliteRadio.value : 'noaa-goes19';
-                    const s3Region = 'us-east-1';
-                    const downloadUrl = `https://${bucketName}.s3.${s3Region}.amazonaws.com/${s3Key}`;
-                    
-                    const link = document.createElement('a');
-                    link.href = downloadUrl;
-                    link.target = '_blank';
-                    link.download = s3Key.split('/').pop();
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-
-                    if (i < selectedCheckboxes.length - 1) {
-                        await new Promise(resolve => setTimeout(resolve, 200));
-                    }
-                }
-            });
-
-            // Event listener for the main "Select All" button (for file results)
-            selectAllButton.addEventListener('click', () => {
-                const checkboxes = resultsDiv.querySelectorAll('input[type="checkbox"]');
-                const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-
-                checkboxes.forEach(cb => {
-                    cb.checked = !allChecked; // Toggle the checked state
-                });
-
-                // Update button text based on new state
-                selectAllButton.textContent = allChecked ? 'Select All' : 'Deselect All';
-            });
-
-            // Event listener for the new "Select All Channels" button
-            selectAllChannelsButton.addEventListener('click', () => {
-                const channelCheckboxes = channelCheckboxesDiv.querySelectorAll('input[type="checkbox"]');
-                channelCheckboxes.forEach(cb => {
-                    if (!cb.disabled) { // Only select if not disabled by product type
-                        cb.checked = true;
-                    }
-                });
-                updatePrefixDisplay(); // Update prefix if channel selection affects it
-            });
-
-            // Event listener for the new "Clear All Channels" button
-            clearAllChannelsButton.addEventListener('click', () => {
-                const channelCheckboxes = channelCheckboxesDiv.querySelectorAll('input[type="checkbox"]');
-                channelCheckboxes.forEach(cb => {
-                    cb.checked = false;
-                });
-                updatePrefixDisplay(); // Update prefix if channel selection affects it
-            });
+            if (selectedCheckboxes.length > 1) {
+                resultsDiv.innerHTML = `<div class="text-blue-600 font-medium mb-4">Starting ${selectedCheckboxes.length} downloads... Please check your browser's download bar or pop-up blocker if you don't see them.</div>`;
+                setTimeout(() => {
+                    const currentKeys = Array.from(resultsDiv.querySelectorAll('.selectable-list-item label')).map(label => label.textContent);
+                    displayResults(currentKeys);
+                }, 3000);
+            }
 
 
-            // Event listener for the new "Open in myhdf5.hdfgroup.org" button
-            openMyHDF5Button.addEventListener('click', () => {
-                const selectedCheckboxes = resultsDiv.querySelectorAll('input[type="checkbox"]:checked');
-                if (selectedCheckboxes.length !== 1) {
-                    displayError("Please select exactly ONE file to open in myhdf5.hdfgroup.org.");
-                    return;
-                }
-
-                hideError();
-                hideInstruction();
-                hideMyHDF5Instruction();
-
-                const checkbox = selectedCheckboxes[0];
+            for (let i = 0; i < selectedCheckboxes.length; i++) {
+                const checkbox = selectedCheckboxes[i];
                 const s3Key = checkbox.value;
                 const selectedSatelliteRadio = document.querySelector('input[name="satellite"]:checked');
                 const bucketName = selectedSatelliteRadio ? selectedSatelliteRadio.value : 'noaa-goes19';
                 const s3Region = 'us-east-1';
-                const fileUrl = `https://${bucketName}.s3.${s3Region}.amazonaws.com/${s3Key}`;
-
-                // URL-encode the S3 file URL
-                const encodedFileUrl = encodeURIComponent(fileUrl);
-                const myHDF5DirectViewUrl = `https://myhdf5.hdfgroup.org/view?url=${encodedFileUrl}`;
+                const downloadUrl = `https://${bucketName}.s3.${s3Region}.amazonaws.com/${s3Key}`;
                 
-                // Open myhdf5.hdfgroup.org in a new tab with the direct view URL
-                window.open(myHDF5DirectViewUrl, '_blank');
-            });
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.target = '_blank';
+                link.download = s3Key.split('/').pop();
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
 
-
-            function displayResults(keys) {
-                resultsDiv.innerHTML = '';
-                if (Array.isArray(keys) && keys.length > 0) {
-                    keys.forEach(key => {
-                        const itemDiv = document.createElement('div');
-                        itemDiv.className = 'selectable-list-item';
-
-                        const checkbox = document.createElement('input');
-                        checkbox.type = 'checkbox';
-                        checkbox.value = key;
-                        checkbox.id = `key-${key.replace(/[^a-zA-Z0-9]/g, '_')}`;
-
-                        const label = document.createElement('label');
-                        label.htmlFor = checkbox.id;
-                        label.textContent = key;
-                        label.style.cursor = 'pointer';
-
-                        itemDiv.appendChild(checkbox);
-                        itemDiv.appendChild(label);
-                        resultsDiv.appendChild(itemDiv);
-                    });
-                } else if (typeof keys === 'string') {
-                    resultsDiv.textContent = keys;
-                } else {
-                    resultsDiv.textContent = "No object keys found for the specified criteria.";
+                if (i < selectedCheckboxes.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 200));
                 }
             }
-
-            function showLoading() {
-                queryButton.disabled = true;
-                loadingSpinner.style.display = 'block';
-            }
-
-            function hideLoading() {
-                queryButton.disabled = false;
-                loadingSpinner.style.display = 'none';
-            }
-
-            function displayError(message) {
-                errorMessageDiv.textContent = message;
-                errorMessageDiv.style.display = 'block';
-                resultsDiv.innerHTML = '';
-                downloadButton.style.display = 'none';
-                selectAllButton.style.display = 'none';
-                openMyHDF5Button.style.display = 'none';
-                hideLoading();
-                hideInstruction();
-                hideMyHDF5Instruction();
-            }
-
-            function hideError() {
-                errorMessageDiv.style.display = 'none';
-                errorMessageDiv.textContent = '';
-            }
-
-            function displayInstruction(message) {
-                instructionMessageDiv.textContent = message;
-                instructionMessageDiv.style.display = 'block';
-            }
-
-            function hideInstruction() {
-                instructionMessageDiv.style.display = 'none';
-                instructionMessageDiv.textContent = '';
-            }
-
-            function showMyHDF5Instruction() {
-                myHDF5InstructionDiv.style.display = 'block';
-            }
-
-            function hideMyHDF5Instruction() {
-                myHDF5InstructionDiv.style.display = 'none';
-            }
         });
-    </script>
+
+        // Event listener for the main "Select All" button (for file results)
+        selectAllButton.addEventListener('click', () => {
+            const checkboxes = resultsDiv.querySelectorAll('input[type="checkbox"]');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+
+            checkboxes.forEach(cb => {
+                cb.checked = !allChecked; // Toggle the checked state
+            });
+
+            // Update button text based on new state
+            selectAllButton.textContent = allChecked ? 'Select All' : 'Deselect All';
+        });
+
+        // Event listener for the new "Select All Channels" button
+        selectAllChannelsButton.addEventListener('click', () => {
+            const channelCheckboxes = channelCheckboxesDiv.querySelectorAll('input[type="checkbox"]');
+            channelCheckboxes.forEach(cb => {
+                if (!cb.disabled) { // Only select if not disabled by product type
+                    cb.checked = true;
+                }
+            });
+            updatePrefixDisplay(); // Update prefix if channel selection affects it
+        });
+
+        // Event listener for the new "Clear All Channels" button
+        clearAllChannelsButton.addEventListener('click', () => {
+            const channelCheckboxes = channelCheckboxesDiv.querySelectorAll('input[type="checkbox"]');
+            channelCheckboxes.forEach(cb => {
+                cb.checked = false;
+            });
+            updatePrefixDisplay(); // Update prefix if channel selection affects it
+        });
+
+
+        // Event listener for the new "Open in myhdf5.hdfgroup.org" button
+        openMyHDF5Button.addEventListener('click', () => {
+            const selectedCheckboxes = resultsDiv.querySelectorAll('input[type="checkbox"]:checked');
+            if (selectedCheckboxes.length !== 1) {
+                displayError("Please select exactly ONE file to open in myhdf5.hdfgroup.org.");
+                return;
+            }
+
+            hideError();
+            hideInstruction();
+            hideMyHDF5Instruction();
+
+            const checkbox = selectedCheckboxes[0];
+            const s3Key = checkbox.value;
+            const selectedSatelliteRadio = document.querySelector('input[name="satellite"]:checked');
+            const bucketName = selectedSatelliteRadio ? selectedSatelliteRadio.value : 'noaa-goes19';
+            const s3Region = 'us-east-1';
+            const fileUrl = `https://${bucketName}.s3.${s3Region}.amazonaws.com/${s3Key}`;
+
+            // URL-encode the S3 file URL
+            const encodedFileUrl = encodeURIComponent(fileUrl);
+            const myHDF5DirectViewUrl = `https://myhdf5.hdfgroup.org/view?url=${encodedFileUrl}`;
+            
+            // Open myhdf5.hdfgroup.org in a new tab with the direct view URL
+            window.open(myHDF5DirectViewUrl, '_blank');
+        });
+
+
+        function displayResults(keys) {
+            resultsDiv.innerHTML = '';
+            if (Array.isArray(keys) && keys.length > 0) {
+                keys.forEach(key => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'selectable-list-item';
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.value = key;
+                    checkbox.id = `key-${key.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+                    const label = document.createElement('label');
+                    label.htmlFor = checkbox.id;
+                    label.textContent = key;
+                    label.style.cursor = 'pointer';
+
+                    itemDiv.appendChild(checkbox);
+                    itemDiv.appendChild(label);
+                    resultsDiv.appendChild(itemDiv);
+                });
+            } else if (typeof keys === 'string') {
+                resultsDiv.textContent = keys;
+            } else {
+                resultsDiv.textContent = "No object keys found for the specified criteria.";
+            }
+        }
+
+        function showLoading() {
+            queryButton.disabled = true;
+            loadingSpinner.style.display = 'block';
+        }
+
+        function hideLoading() {
+            queryButton.disabled = false;
+            loadingSpinner.style.display = 'none';
+        }
+
+        function displayError(message) {
+            errorMessageDiv.textContent = message;
+            errorMessageDiv.style.display = 'block';
+            resultsDiv.innerHTML = '';
+            downloadButton.style.display = 'none';
+            selectAllButton.style.display = 'none';
+            openMyHDF5Button.style.display = 'none';
+            hideLoading();
+            hideInstruction();
+            hideMyHDF5Instruction();
+        }
+
+        function hideError() {
+            errorMessageDiv.style.display = 'none';
+            errorMessageDiv.textContent = '';
+        }
+
+        function displayInstruction(message) {
+            instructionMessageDiv.textContent = message;
+            instructionMessageDiv.style.display = 'block';
+        }
+
+        function hideInstruction() {
+            instructionMessageDiv.style.display = 'none';
+            instructionMessageDiv.textContent = '';
+        }
+
+        function showMyHDF5Instruction() {
+            myHDF5InstructionDiv.style.display = 'block';
+        }
+
+        function hideMyHDF5Instruction() {
+            myHDF5InstructionDiv.style.display = 'none';
+        }
+    });
+</script>
 </body>
 </html>
