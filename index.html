@@ -875,7 +875,7 @@
                 const lowerBoundDt = new Date(targetDt.getTime() - timeDelta * 60 * 1000);
                 const upperBoundDt = new Date(targetDt.getTime() + timeDelta * 60 * 1000);
 
-                let uniqueHourlyPrefixSegments = new Set(); // Storesപ്പെടെ/DDD/HH/
+                let uniqueHourlyPrefixSegments = new Set(); // Store YYYY/DDD/HH/
 
                 // Iterate through hours from the lower bound to the upper bound (inclusive)
                 let currentIterDt = new Date(Date.UTC(lowerBoundDt.getUTCFullYear(), lowerBoundDt.getUTCMonth(), lowerBoundDt.getUTCDate(), lowerBoundDt.getUTCHours()));
