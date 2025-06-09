@@ -272,7 +272,6 @@
             background-color: #f8fafc;
         }
     </style>
-    <!-- Google tag (gtag.js) - CORRECTLY PLACED IN HEAD -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-S1GZVR1HPX"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -299,7 +298,6 @@
                 </select>
         </div>
 
-        <!-- Product Mapping Cheat Sheet Info Pane -->
         <div class="info-pane mb-6">
             <details>
                 <summary>Product Type Mapping Cheat Sheet</summary>
@@ -316,13 +314,13 @@
                         </thead>
                         <tbody>
                             <tr><td class="px-4 py-2">ABI L1b Radiance</td><td class="px-4 py-2">ABI-L1b-Rad</td></tr>
-                            <tr><td class="px-4 py-2">ABI L2 Cloud Altitude</td><td class="px-4 py-2">ABI-L2-ACHA</td></tr>
+                            <tr><td class="px-4 py-2">ABI L2 Cloud Top Height</td><td class="px-4 py-2">ABI-L2-ACHA</td></tr>
                             <tr><td class="px-4 py-2">ABI L2 2km Cloud Height</td><td class="px-4 py-2">ABI-L2-ACHA2KM</td></tr>
                             <tr><td class="px-4 py-2">ABI L2 2km Cloud Pressure</td><td class="px-4 py-2">ABI-L2-ACHP2KM</td></tr>
-                            <tr><td class="px-4 py-2">ABI L2 Cloud Temperature</td><td class="px-4 py-2">ABI-L2-ACHT</td></tr>
+                            <tr><td class="px-4 py-2">ABI L2 Cloud Top Temperature</td><td class="px-4 py-2">ABI-L2-ACHT</td></tr>
                             <tr><td class="px-4 py-2">ABI L2 Cloud Mask</td><td class="px-4 py-2">ABI-L2-ACM</td></tr>
-                            <tr><td class="px-4 py-2">ABI L2 Cloud Type</td><td class="px-4 py-2">ABI-L2-ACTP</td></tr>
-                            <tr><td class="px-4 py-2">ABI L2 Aerosol</td><td class="px-4 py-2">ABI-L2-ADP</td></tr>
+                            <tr><td class="px-4 py-2">ABI L2 Cloud Top Phase</td><td class="px-4 py-2">ABI-L2-ACTP</td></tr>
+                            <tr><td class="px-4 py-2">ABI L2 Aerosol Detection</td><td class="px-4 py-2">ABI-L2-ADP</td></tr>
                             <tr><td class="px-4 py-2">ABI L2 Ice Conc & Extent</td><td class="px-4 py-2">ABI-L2-AICE</td></tr>
                             <tr><td class="px-4 py-2">ABI L2 Ice Thickness & Age</td><td class="px-4 py-2">ABI-L2-AITA</td></tr>
                             <tr><td class="px-4 py-2">ABI L2 Aerosol Optical Depth</td><td class="px-4 py-2">ABI-L2-AOD</td></tr>
@@ -347,7 +345,7 @@
                             <tr><td class="px-4 py-2">ABI L2 Imagery 16 Channel</td><td class="px-4 py-2">ABI-L2-MCMIP</td></tr>
                             <tr><td class="px-4 py-2">ABI L2 Photosynthetically Active Radiation</td><td class="px-4 py-2">ABI-L2-PAR</td></tr>
                             <tr><td class="px-4 py-2">ABI L2 Rainfall Rate QPE</td><td class="px-4 py-2">ABI-L2-RRQPE</td></tr>
-                            <tr><td class="px-4 py-2">ABI L2 Radiation (Surface Refl)</td><td class="px-4 py-2">ABI-L2-RSR</td></tr>
+                            <tr><td class="px-4 py-2">ABI L2 Reflected Shortwave Radiation Top-of-Atmosphere</td><td class="px-4 py-2">ABI-L2-RSR</td></tr>
                             <tr><td class="px-4 py-2">ABI L2 Sea Surface Temperature</td><td class="px-4 py-2">ABI-L2-SST</td></tr>
                             <tr><td class="px-4 py-2">ABI L2 Total Precipitable Water</td><td class="px-4 py-2">ABI-L2-TPW</td></tr>
                             <tr><td class="px-4 py-2">EXIS L1b Solar Flux EUV</td><td class="px-4 py-2">EXIS-L1b-SFEU</td></tr>
@@ -426,7 +424,6 @@
             </div>
         </div>
 
-        <!-- Time Delta Slider - NEW FEATURE -->
         <div class="form-group mb-6">
             <label for="timeDeltaSlider" class="mb-2 flex justify-between items-center">
                 <span>Time Delta (Minutes):</span>
@@ -441,7 +438,6 @@
                 </div>
         </div>
 
-        <!-- Instruction Box -->
         <div id="myHDF5Instruction" class="bg-yellow-100 text-yellow-800 border border-yellow-300 rounded-lg p-4 mb-6">
             <p class="font-semibold mb-2">Tip for Viewing Files:</p>
             <p>Select a single file from the results and click "Open in myhdf5.hdfgroup.org (Direct View)". This will directly open the selected file in <a href="https://myhdf5.hdfgroup.org/" target="_blank" class="text-yellow-800 underline hover:text-yellow-900">myhdf5.hdfgroup.org</a> in a new tab for immediate viewing.</p>
@@ -458,14 +454,12 @@
             <button id="selectAllButton" class="btn-primary flex items-center w-full sm:w-auto justify-center" style="display: none;">
                 Select All
             </button>
-            <!-- New button for myhdf5.hdfgroup.org -->
             <button id="openMyHDF5Button" class="btn-primary flex items-center w-full sm:w-auto justify-center" style="display: none;">
                 Open in myhdf5.hdfgroup.org (Direct View)
             </button>
         </div>
 
         <div id="errorMessage" class="error-message"></div>
-        <!-- Message box for user instructions (now for general messages) -->
         <div id="instructionMessage" class="error-message bg-green-100 text-green-700 border-green-300" style="display: none;"></div>
 
 
@@ -518,21 +512,21 @@
             // The regional suffix (F, C, M) will be appended dynamically to these.
             const productTypes = [
                 { "value": "ABI-L1b-Rad", "label": "ABI L1b Radiance" },
-                { "value": "ABI-L2-ACHA", "label": "ABI L2 Cloud Altitude" },
+                { "value": "ABI-L2-ACHA", "label": "ABI L2 Cloud Top Height" },
                 { "value": "ABI-L2-ACHA2KM", "label": "ABI L2 2km Cloud Height" },
                 { "value": "ABI-L2-ACHP2KM", "label": "ABI L2 2km Cloud Pressure" },
-                { "value": "ABI-L2-ACHT", "label": "ABI L2 Cloud Temperature" },
+                { "value": "ABI-L2-ACHT", "label": "ABI L2 Cloud Top Temperature" },
                 { "value": "ABI-L2-ACM", "label": "ABI L2 Cloud Mask" },
-                { "value": "ABI-L2-ACTP", "label": "ABI L2 Cloud Type" },
-                { "value": "ABI-L2-ADP", "label": "ABI L2 Aerosol" },
+                { "value": "ABI-L2-ACTP", "label": "ABI L2 Cloud Top Phase" },
+                { "value": "ABI-L2-ADP", "label": "ABI L2 Aerosol Detection" },
                 { "value": "ABI-L2-AICE", "label": "ABI L2 Ice Conc & Extent" },
                 { "value": "ABI-L2-AITA", "label": "ABI L2 Ice Thickness & Age" },
                 { "value": "ABI-L2-AOD", "label": "ABI L2 Aerosol Optical Depth" },
                 { "value": "ABI-L2-BRF", "label": "ABI L2 Bidirectional Reflectance" },
-                { "value": "ABI-L2-CCLC", "label": "ABI L2 Clear Sky Confidence" }, // New
+                { "value": "ABI-L2-CCLC", "label": "ABI L2 Clear Sky Confidence" },
                 { "value": "ABI-L2-CMIP", "label": "ABI L2 Cloud & Moisture Imagery" },
                 { "value": "ABI-L2-COD", "label": "ABI L2 Cloud Optical Depth" },
-                { "value": "ABI-L2-COD2KM", "label": "ABI L2 Cloud Optical Depth 2KM" }, // New
+                { "value": "ABI-L2-COD2KM", "label": "ABI L2 Cloud Optical Depth 2KM" },
                 { "value": "ABI-L2-CPS", "label": "ABI L2 Cloud Particle Size" },
                 { "value": "ABI-L2-CTP", "label": "ABI L2 Cloud Top Pressure" },
                 { "value": "ABI-L2-DMW", "label": "ABI L2 Derived Motion Winds" },
@@ -543,29 +537,29 @@
                 { "value": "ABI-L2-FSC", "label": "ABI L2 Fractional Snow Cover" },
                 { "value": "ABI-L2-LSA", "label": "ABI L2 Land Surface Albedo" },
                 { "value": "ABI-L2-LST", "label": "ABI L2 Land Surface Temperature" },
-                { "value": "ABI-L2-LST2KM", "label": "ABI L2 Land Surface Temperature 2KM" }, // New
+                { "value": "ABI-L2-LST2KM", "label": "ABI L2 Land Surface Temperature 2KM" },
                 { "value": "ABI-L2-LVMP", "label": "ABI L2 Legacy Vertical Moisture Profile" },
                 { "value": "ABI-L2-LVTP", "label": "ABI L2 Legacy Vertical Temp Profile" },
                 { "value": "ABI-L2-MCMIP", "label": "ABI L2 Imagery 16 Channel" },
-                { "value": "ABI-L2-PAR", "label": "ABI L2 Photosynthetically Active Radiation" }, // New
+                { "value": "ABI-L2-PAR", "label": "ABI L2 Photosynthetically Active Radiation" },
                 { "value": "ABI-L2-RRQPE", "label": "ABI L2 Rainfall Rate QPE" },
-                { "value": "ABI-L2-RSR", "label": "ABI L2 Radiation (Surface Refl)" },
+                { "value": "ABI-L2-RSR", "label": "ABI L2 Reflected Shortwave Radiation Top-of-Atmosphere" },
                 { "value": "ABI-L2-SST", "label": "ABI L2 Sea Surface Temperature" },
                 { "value": "ABI-L2-TPW", "label": "ABI L2 Total Precipitable Water" },
-                { "value": "EXIS-L1b-SFEU", "label": "EXIS L1b Solar Flux EUV" }, // New
-                { "value": "EXIS-L1b-SFXR", "label": "EXIS L1b Solar Flux X-Ray" }, // Corrected label
+                { "value": "EXIS-L1b-SFEU", "label": "EXIS L1b Solar Flux EUV" },
+                { "value": "EXIS-L1b-SFXR", "label": "EXIS L1b Solar Flux X-Ray" },
                 { "value": "GLM-L2-LCFA", "label": "GLM L2 Lightning" },
-                { "value": "MAG-L1b-GEOF", "label": "MAG L1b Geomagnetic Field" }, // New
-                { "value": "SEIS-L1b-EHIS", "label": "SEIS L1b Energetic Heavy Ion Sensor" }, // New
-                { "value": "SEIS-L1b-MPSH", "label": "SEIS L1b Magnetospheric Particle Sensor High" }, // New
-                { "value": "SEIS-L1b-MPSL", "label": "SEIS L1b Magnetospheric Particle Sensor Low" }, // New
-                { "value": "SEIS-L1b-SGPS", "label": "SEIS L1b Solar and Galactic Proton Sensor" }, // New
-                { "value": "SUVI-L1b-Fe093", "label": "SUVI L1b Fe093" }, // Corrected from Fe094
+                { "value": "MAG-L1b-GEOF", "label": "MAG L1b Geomagnetic Field" },
+                { "value": "SEIS-L1b-EHIS", "label": "SEIS L1b Energetic Heavy Ion Sensor" },
+                { "value": "SEIS-L1b-MPSH", "label": "SEIS L1b Magnetospheric Particle Sensor High" },
+                { "value": "SEIS-L1b-MPSL", "label": "SEIS L1b Magnetospheric Particle Sensor Low" },
+                { "value": "SEIS-L1b-SGPS", "label": "SEIS L1b Solar and Galactic Proton Sensor" },
+                { "value": "SUVI-L1b-Fe093", "label": "SUVI L1b Fe093" },
                 { "value": "SUVI-L1b-Fe131", "label": "SUVI L1b Fe131" },
                 { "value": "SUVI-L1b-Fe171", "label": "SUVI L1b Fe171" },
                 { "value": "SUVI-L1b-Fe195", "label": "SUVI L1b Fe195" },
                 { "value": "SUVI-L1b-Fe284", "label": "SUVI L1b Fe284" },
-                { "value": "SUVI-L1b-He303", "label": "SUVI L1b He303" }  // Corrected from He304
+                { "value": "SUVI-L1b-He303", "label": "SUVI L1b He303" }
             ];
 
             // Define coverage regions (including Mesoscale 1 and 2)
