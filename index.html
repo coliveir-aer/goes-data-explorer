@@ -271,6 +271,35 @@
         .info-pane tr:nth-child(even) {
             background-color: #f8fafc;
         }
+
+        /* Styles for copy link section */
+        .copy-link-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .copy-link-group input[type="text"] {
+            flex-grow: 1;
+            padding: 10px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            background-color: #f8fafc;
+            color: #334155;
+        }
+        .copy-link-group button {
+            background-color: #10b981; /* Green for copy */
+            color: white;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+            white-space: nowrap; /* Prevent text wrapping */
+        }
+        .copy-link-group button:hover {
+            background-color: #059669;
+        }
     </style>
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-S1GZVR1HPX"></script>
     <script>
@@ -451,6 +480,9 @@
             <button id="downloadButton" class="btn-primary flex items-center w-full sm:w-auto justify-center" style="display: none;">
                 Download Selected Files
             </button>
+            <button id="downloadJsonButton" class="btn-primary flex items-center w-full sm:w-auto justify-center" style="display: none;">
+                Download as JSON
+            </button>
             <button id="selectAllButton" class="btn-primary flex items-center w-full sm:w-auto justify-center" style="display: none;">
                 Select All
             </button>
@@ -459,6 +491,13 @@
             </button>
         </div>
 
+        <div id="copyS3LinkGroup" class="form-group mb-6" style="display: none;">
+            <label for="s3LinkInput" class="mb-2">S3 Object Link:</label>
+            <div class="copy-link-group">
+                <input type="text" id="s3LinkInput" readonly class="focus:ring-blue-500 focus:border-blue-500">
+                <button id="copyLinkButton" class="btn-primary">Copy Link</button>
+            </div>
+        </div>
         <div id="errorMessage" class="error-message"></div>
         <div id="instructionMessage" class="error-message bg-green-100 text-green-700 border-green-300" style="display: none;"></div>
 
@@ -486,6 +525,7 @@
             const timeDeltaValueSpan = document.getElementById('timeDeltaValue');
             const queryButton = document.getElementById('queryButton');
             const downloadButton = document.getElementById('downloadButton');
+            const downloadJsonButton = document.getElementById('downloadJsonButton'); // New
             const selectAllButton = document.getElementById('selectAllButton');
             const openMyHDF5Button = document.getElementById('openMyHDF5Button');
             const resultsDiv = document.getElementById('results');
@@ -495,9 +535,14 @@
             const myHDF5InstructionDiv = document.getElementById('myHDF5Instruction');
             const currentPrefixDisplay = document.getElementById('currentPrefix');
             const channelSelectionGroup = document.getElementById('channelSelectionGroup');
-            const channelCheckboxesDiv = document.getElementById('channelCheckboxes'); // Corrected
+            const channelCheckboxesDiv = document.getElementById('channelCheckboxes');
             const selectAllChannelsButton = document.getElementById('selectAllChannelsButton');
             const clearAllChannelsButton = document.getElementById('clearAllChannelsButton');
+            
+            // New Copy S3 Link elements
+            const copyS3LinkGroup = document.getElementById('copyS3LinkGroup');
+            const s3LinkInput = document.getElementById('s3LinkInput');
+            const copyLinkButton = document.getElementById('copyLinkButton');
 
 
             // Define available satellites (ordered: 16, 17, 18, 19, with 19 as default)
@@ -871,8 +916,10 @@
                 hideError();
                 hideInstruction();
                 hideMyHDF5Instruction();
+                hideCopyLinkSection(); // New: Hide copy link section on new query
                 showLoading();
                 downloadButton.style.display = 'none';
+                downloadJsonButton.style.display = 'none'; // New: Hide download JSON button
                 selectAllButton.style.display = 'none';
                 openMyHDF5Button.style.display = 'none';
 
@@ -1021,15 +1068,19 @@
                     if (keysToDisplay.length > 0) {
                         displayResults(keysToDisplay);
                         downloadButton.style.display = 'flex';
+                        downloadJsonButton.style.display = 'flex'; // New: Show download JSON button
                         selectAllButton.style.display = 'flex';
                         selectAllButton.textContent = 'Select All';
                         openMyHDF5Button.style.display = 'flex';
                         showMyHDF5Instruction();
+                        updateCopyLinkSection(); // New: Update copy link section after displaying results
                     } else {
                         displayResults("No object keys found for the specified criteria within the selected time window. Please double-check the date/time, product type, and time delta. Data for the very latest hours might not be immediately available. You can check NOAA's GOES data availability for more info.");
                         selectAllButton.style.display = 'none';
+                        downloadJsonButton.style.display = 'none'; // New: Hide download JSON button
                         openMyHDF5Button.style.display = 'none';
                         hideMyHDF5Instruction();
+                        hideCopyLinkSection(); // New: Hide copy link section if no results
                     }
 
                 } catch (error) {
@@ -1037,8 +1088,10 @@
                     console.error("Error querying S3:", error);
                     displayError(`Failed to query S3: ${error.message || "An unknown error occurred."}`);
                     selectAllButton.style.display = 'none';
+                    downloadJsonButton.style.display = 'none'; // New: Hide download JSON button
                     openMyHDF5Button.style.display = 'none';
                     hideMyHDF5Instruction();
+                    hideCopyLinkSection(); // New: Hide copy link section on error
                 }
             });
 
@@ -1052,12 +1105,15 @@
                 hideError();
                 hideInstruction();
                 hideMyHDF5Instruction();
+                hideCopyLinkSection(); // New: Hide copy link section on download
 
                 if (selectedCheckboxes.length > 1) {
                     resultsDiv.innerHTML = `<div class="text-blue-600 font-medium mb-4">Starting ${selectedCheckboxes.length} downloads... Please check your browser's download bar or pop-up blocker if you don't see them.</div>`;
                     setTimeout(() => {
                         const currentKeys = Array.from(resultsDiv.querySelectorAll('.selectable-list-item label')).map(label => label.textContent);
                         displayResults(currentKeys);
+                        // Re-evaluate copy link after results are re-displayed
+                        updateCopyLinkSection(); 
                     }, 3000);
                 }
 
@@ -1084,6 +1140,28 @@
                 }
             });
 
+            // New: Event listener for Download JSON button
+            downloadJsonButton.addEventListener('click', () => {
+                const allKeys = Array.from(resultsDiv.querySelectorAll('.selectable-list-item input[type="checkbox"]'))
+                                    .map(checkbox => checkbox.value);
+                
+                if (allKeys.length === 0) {
+                    displayError("No files to download as JSON.");
+                    return;
+                }
+
+                const jsonString = JSON.stringify(allKeys, null, 2); // Pretty print JSON
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'goes_data_keys.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url); // Clean up the URL object
+            });
+
             // Event listener for the main "Select All" button (for file results)
             selectAllButton.addEventListener('click', () => {
                 const checkboxes = resultsDiv.querySelectorAll('input[type="checkbox"]');
@@ -1095,6 +1173,7 @@
 
                 // Update button text based on new state
                 selectAllButton.textContent = allChecked ? 'Select All' : 'Deselect All';
+                updateCopyLinkSection(); // New: Update copy link section after select all/deselect all
             });
 
             // Event listener for the new "Select All Channels" button
@@ -1129,6 +1208,7 @@
                 hideError();
                 hideInstruction();
                 hideMyHDF5Instruction();
+                hideCopyLinkSection(); // New: Hide copy link section on open in myhdf5
 
                 const checkbox = selectedCheckboxes[0];
                 const s3Key = checkbox.value;
@@ -1143,6 +1223,25 @@
                 
                 // Open myhdf5.hdfgroup.org in a new tab with the direct view URL
                 window.open(myHDF5DirectViewUrl, '_blank');
+            });
+
+            // New: Event listener for Copy Link button
+            copyLinkButton.addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText(s3LinkInput.value);
+                    displayInstruction("Link copied to clipboard!");
+                    setTimeout(hideInstruction, 3000); // Hide message after 3 seconds
+                } catch (err) {
+                    console.error('Failed to copy: ', err);
+                    displayError('Failed to copy link to clipboard. Please copy manually.');
+                }
+            });
+
+            // New: Event listener for changes within resultsDiv (to update copy link section)
+            resultsDiv.addEventListener('change', (event) => {
+                if (event.target.type === 'checkbox') {
+                    updateCopyLinkSection();
+                }
             });
 
 
@@ -1189,11 +1288,13 @@
                 errorMessageDiv.style.display = 'block';
                 resultsDiv.innerHTML = '';
                 downloadButton.style.display = 'none';
+                downloadJsonButton.style.display = 'none'; // New: Hide download JSON button
                 selectAllButton.style.display = 'none';
                 openMyHDF5Button.style.display = 'none';
                 hideLoading();
                 hideInstruction();
                 hideMyHDF5Instruction();
+                hideCopyLinkSection(); // New: Hide copy link section on error
             }
 
             function hideError() {
@@ -1217,6 +1318,29 @@
 
             function hideMyHDF5Instruction() {
                 myHDF5InstructionDiv.style.display = 'none';
+            }
+
+            // New: Function to update the visibility and content of the copy link section
+            function updateCopyLinkSection() {
+                const selectedCheckboxes = resultsDiv.querySelectorAll('input[type="checkbox"]:checked');
+                const selectedSatelliteRadio = document.querySelector('input[name="satellite"]:checked');
+                const bucketName = selectedSatelliteRadio ? selectedSatelliteRadio.value : 'noaa-goes19';
+                const s3Region = 'us-east-1';
+
+                if (selectedCheckboxes.length === 1) {
+                    const s3Key = selectedCheckboxes[0].value;
+                    const fileUrl = `https://${bucketName}.s3.${s3Region}.amazonaws.com/${s3Key}`;
+                    s3LinkInput.value = fileUrl;
+                    copyS3LinkGroup.style.display = 'block';
+                } else {
+                    hideCopyLinkSection();
+                }
+            }
+
+            // New: Helper function to hide and clear the copy link section
+            function hideCopyLinkSection() {
+                copyS3LinkGroup.style.display = 'none';
+                s3LinkInput.value = '';
             }
         });
     </script>
