@@ -509,9 +509,6 @@
                 Download Selected Files
             </button>
 
-            <button id="selectAllButton" class="btn-primary flex items-center w-full sm:w-auto justify-center" style="display: none;">
-                Select All
-            </button>
             <button id="openMyHDF5Button" class="btn-primary flex items-center w-full sm:w-auto justify-center" style="display: none;">
                 Open in myhdf5.hdfgroup.org (Direct View)
             </button>
@@ -571,7 +568,6 @@
             const timeDeltaValueSpan = document.getElementById('timeDeltaValue');
             const queryButton = document.getElementById('queryButton');
             const downloadButton = document.getElementById('downloadButton');
-            const selectAllButton = document.getElementById('selectAllButton');
             const openMyHDF5Button = document.getElementById('openMyHDF5Button');
             const resultsDiv = document.getElementById('results');
             const loadingSpinner = document.getElementById('loadingSpinner');
@@ -980,7 +976,6 @@
                 copyLinksPanel.classList.add('hidden');
 				jsonOutputPanel.classList.add('hidden');
                 downloadButton.style.display = 'none';
-                selectAllButton.style.display = 'none';
                 openMyHDF5Button.style.display = 'none';
 
                 let allFoundKeys = [];
@@ -1128,14 +1123,11 @@
                     if (keysToDisplay.length > 0) {
                         displayResults(keysToDisplay);
                         downloadButton.style.display = 'flex';
-                        selectAllButton.style.display = 'flex';
-                        selectAllButton.textContent = 'Select All';
                         openMyHDF5Button.style.display = 'flex';
                         showMyHDF5Instruction();
                         updateCopyLinkSection(); // New: Update copy link section after displaying results
                     } else {
                         displayResults("No object keys found for the specified criteria within the selected time window. Please double-check the date/time, product type, and time delta. Data for the very latest hours might not be immediately available. You can check NOAA's GOES data availability for more info.");
-                        selectAllButton.style.display = 'none';
                         openMyHDF5Button.style.display = 'none';
                         hideMyHDF5Instruction();
                         hideCopyLinkSection(); // New: Hide copy link section if no results
@@ -1145,7 +1137,6 @@
                     hideLoading();
                     console.error("Error querying S3:", error);
                     displayError(`Failed to query S3: ${error.message || "An unknown error occurred."}`);
-                    selectAllButton.style.display = 'none';
                     openMyHDF5Button.style.display = 'none';
                     hideMyHDF5Instruction();
                     hideCopyLinkSection(); // New: Hide copy link section on error
@@ -1195,21 +1186,6 @@
                         await new Promise(resolve => setTimeout(resolve, 200));
                     }
                 }
-            });
-
-
-            // Event listener for the main "Select All" button (for file results)
-            selectAllButton.addEventListener('click', () => {
-                const checkboxes = resultsDiv.querySelectorAll('input[type="checkbox"]');
-                const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-
-                checkboxes.forEach(cb => {
-                    cb.checked = !allChecked; // Toggle the checked state
-                });
-
-                // Update button text based on new state
-                selectAllButton.textContent = allChecked ? 'Select All' : 'Deselect All';
-                updateCopyLinkSection(); // New: Update copy link section after select all/deselect all
             });
 
             // Event listener for the new "Select All Channels" button
@@ -1341,7 +1317,6 @@
                 errorMessageDiv.style.display = 'block';
                 resultsDiv.innerHTML = '';
                 downloadButton.style.display = 'none';
-                selectAllButton.style.display = 'none';
                 openMyHDF5Button.style.display = 'none';
                 hideLoading();
                 hideInstruction();
