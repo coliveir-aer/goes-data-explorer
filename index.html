@@ -497,7 +497,7 @@
 
         <div id="myHDF5Instruction" class="bg-yellow-100 text-yellow-800 border border-yellow-300 rounded-lg p-4 mb-6">
             <p class="font-semibold mb-2">Tip for Viewing Files:</p>
-            <p>Select a single file from the results and click "Open in myhdf5.hdfgroup.org (Direct View)". This will directly open the selected file in <a href="https://myhdf5.hdfgroup.org/" target="_blank" class="text-yellow-800 underline hover:text-yellow-900">myhdf5.hdfgroup.org</a> in a new tab for immediate viewing.</p>
+            <p>Select a single file from the results and click the "Open in Sandbox" button. This will open the selected file in the NetCDF Raster Sandbox in a new tab for immediate visualization and analysis.</p>
         </div>
 
         <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
@@ -509,8 +509,8 @@
                 Download Selected Files
             </button>
 
-            <button id="openMyHDF5Button" class="btn-primary flex items-center w-full sm:w-auto justify-center" style="display: none;">
-                Open in myhdf5.hdfgroup.org (Direct View)
+            <button id="openSandboxButton" class="btn-primary flex items-center w-full sm:w-auto justify-center" style="display: none;">
+                Open in Sandbox
             </button>
         </div>
 
@@ -568,7 +568,7 @@
             const timeDeltaValueSpan = document.getElementById('timeDeltaValue');
             const queryButton = document.getElementById('queryButton');
             const downloadButton = document.getElementById('downloadButton');
-            const openMyHDF5Button = document.getElementById('openMyHDF5Button');
+            const openSandboxButton = document.getElementById('openSandboxButton');
             const resultsDiv = document.getElementById('results');
             const loadingSpinner = document.getElementById('loadingSpinner');
             const errorMessageDiv = document.getElementById('errorMessage');
@@ -976,7 +976,7 @@
                 copyLinksPanel.classList.add('hidden');
 				jsonOutputPanel.classList.add('hidden');
                 downloadButton.style.display = 'none';
-                openMyHDF5Button.style.display = 'none';
+                openSandboxButton.style.display = 'none';
 
                 let allFoundKeys = [];
                 let prefixesToQuery = new Set(); // Use a Set to store unique prefixes
@@ -1123,12 +1123,12 @@
                     if (keysToDisplay.length > 0) {
                         displayResults(keysToDisplay);
                         downloadButton.style.display = 'flex';
-                        openMyHDF5Button.style.display = 'flex';
+                        openSandboxButton.style.display = 'flex';
                         showMyHDF5Instruction();
                         updateCopyLinkSection(); // New: Update copy link section after displaying results
                     } else {
                         displayResults("No object keys found for the specified criteria within the selected time window. Please double-check the date/time, product type, and time delta. Data for the very latest hours might not be immediately available. You can check NOAA's GOES data availability for more info.");
-                        openMyHDF5Button.style.display = 'none';
+                        openSandboxButton.style.display = 'none';
                         hideMyHDF5Instruction();
                         hideCopyLinkSection(); // New: Hide copy link section if no results
                     }
@@ -1137,7 +1137,7 @@
                     hideLoading();
                     console.error("Error querying S3:", error);
                     displayError(`Failed to query S3: ${error.message || "An unknown error occurred."}`);
-                    openMyHDF5Button.style.display = 'none';
+                    openSandboxButton.style.display = 'none';
                     hideMyHDF5Instruction();
                     hideCopyLinkSection(); // New: Hide copy link section on error
                 }
@@ -1188,39 +1188,18 @@
                 }
             });
 
-            // Event listener for the new "Select All Channels" button
-            selectAllChannelsButton.addEventListener('click', () => {
-                const channelCheckboxes = channelCheckboxesDiv.querySelectorAll('input[type="checkbox"]');
-                channelCheckboxes.forEach(cb => {
-                    if (!cb.disabled) { // Only select if not disabled by product type
-                        cb.checked = true;
-                    }
-                });
-                updatePrefixDisplay(); // Update prefix if channel selection affects it
-            });
-
-            // Event listener for the new "Clear All Channels" button
-            clearAllChannelsButton.addEventListener('click', () => {
-                const channelCheckboxes = channelCheckboxesDiv.querySelectorAll('input[type="checkbox"]');
-                channelCheckboxes.forEach(cb => {
-                    cb.checked = false;
-                });
-                updatePrefixDisplay(); // Update prefix if channel selection affects it
-            });
-
-
-            // Event listener for the new "Open in myhdf5.hdfgroup.org" button
-            openMyHDF5Button.addEventListener('click', () => {
+            // --- THIS IS THE FIX ---
+            // Event listener for the "Open in Sandbox" button
+            openSandboxButton.addEventListener('click', () => {
                 const selectedCheckboxes = resultsDiv.querySelectorAll('input[type="checkbox"]:checked');
                 if (selectedCheckboxes.length !== 1) {
-                    displayError("Please select exactly ONE file to open in myhdf5.hdfgroup.org.");
+                    displayError("Please select exactly ONE file to open in the sandbox.");
                     return;
                 }
 
                 hideError();
                 hideInstruction();
-                hideMyHDF5Instruction();
-                hideCopyLinkSection(); // New: Hide copy link section on open in myhdf5
+                hideCopyLinkSection(); 
 
                 const checkbox = selectedCheckboxes[0];
                 const s3Key = checkbox.value;
@@ -1228,13 +1207,14 @@
                 const bucketName = selectedSatelliteRadio ? selectedSatelliteRadio.value : 'noaa-goes19';
                 const s3Region = 'us-east-1';
                 const fileUrl = `https://${bucketName}.s3.${s3Region}.amazonaws.com/${s3Key}`;
+                const sandboxBaseUrl = 'https://coliveir-aer.github.io/netcdf-react-experiment/';
 
-                // URL-encode the S3 file URL
+                // URL-encode the S3 file URL to make it a valid query parameter
                 const encodedFileUrl = encodeURIComponent(fileUrl);
-                const myHDF5DirectViewUrl = `https://myhdf5.hdfgroup.org/view?url=${encodedFileUrl}`;
+                const sandboxUrl = `${sandboxBaseUrl}?fileUrl=${encodedFileUrl}`;
                 
-                // Open myhdf5.hdfgroup.org in a new tab with the direct view URL
-                window.open(myHDF5DirectViewUrl, '_blank');
+                // Open the sandbox in a new tab with the direct view URL
+                window.open(sandboxUrl, '_blank');
             });
 
             // New: Event listener for Copy Link button
@@ -1317,7 +1297,7 @@
                 errorMessageDiv.style.display = 'block';
                 resultsDiv.innerHTML = '';
                 downloadButton.style.display = 'none';
-                openMyHDF5Button.style.display = 'none';
+                openSandboxButton.style.display = 'none';
                 hideLoading();
                 hideInstruction();
                 hideMyHDF5Instruction();
