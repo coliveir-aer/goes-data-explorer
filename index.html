@@ -1188,7 +1188,26 @@
                 }
             });
 
-            // --- THIS IS THE FIX ---
+	    // Event listener for the new "Select All Channels" button
+            selectAllChannelsButton.addEventListener('click', () => {
+                const channelCheckboxes = channelCheckboxesDiv.querySelectorAll('input[type="checkbox"]');
+                channelCheckboxes.forEach(cb => {
+                    if (!cb.disabled) { // Only select if not disabled by product type
+                        cb.checked = true;
+                    }
+                });
+                updatePrefixDisplay(); // Update prefix if channel selection affects it
+            });
+
+            // Event listener for the new "Clear All Channels" button
+            clearAllChannelsButton.addEventListener('click', () => {
+                const channelCheckboxes = channelCheckboxesDiv.querySelectorAll('input[type="checkbox"]');
+                channelCheckboxes.forEach(cb => {
+                    cb.checked = false;
+                });
+                updatePrefixDisplay(); // Update prefix if channel selection affects it
+            });
+
             // Event listener for the "Open in Sandbox" button
             openSandboxButton.addEventListener('click', () => {
                 const selectedCheckboxes = resultsDiv.querySelectorAll('input[type="checkbox"]:checked');
@@ -1217,7 +1236,7 @@
                 window.open(sandboxUrl, '_blank');
             });
 
-            // New: Event listener for Copy Link button
+            // Event listener for Copy Link button
             copyLinkButton.addEventListener('click', async () => {
                 try {
                     await navigator.clipboard.writeText(s3LinkInputOriginal.value);
@@ -1229,7 +1248,7 @@
                 }
             });
 
-            // New: Event listener for changes within resultsDiv (to update copy link section)
+            // Event listener for changes within resultsDiv (to update copy link section)
             resultsDiv.addEventListener('change', (event) => {
                 if (event.target.type === 'checkbox') {
                     updateCopyLinkSection();
@@ -1309,7 +1328,6 @@
                 errorMessageDiv.textContent = '';
             }
 
-            // --- NEW HELPER FUNCTIONS FOR PANELS ---
             function showMessage(message, type) {
                 messageBox.textContent = message;
                 messageBox.className = `message-box p-4 rounded-lg opacity-100 ${
@@ -1402,8 +1420,7 @@
                 }
             }
             
-            // Add NEW listeners for the copy buttons
-            // BUG FIX: Prepend the protocol/prefix to the value before copying
+            // Prepend the protocol/prefix to the value before copying
             copyHttpsLinkBtn.addEventListener('click', () => copyToClipboard('https://' + httpsLinkInput.value, 'HTTPS link'));
             copyS3LinkBtnNew.addEventListener('click', () => copyToClipboard('s3://' + s3LinkInputNew.value, 'S3 URI'));
             copyJsonBtn.addEventListener('click', () => copyToClipboard(jsonDisplayArea.value, 'JSON'));
