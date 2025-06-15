@@ -1262,7 +1262,7 @@
             // Event listener for changes within resultsDiv (to update copy link section)
             resultsDiv.addEventListener('change', (event) => {
                 if (event.target.type === 'checkbox') {
-                    updateCopyLinkSection();
+                    updateSelectionPanels();
                 }
             });
 
@@ -1412,20 +1412,39 @@
                 const numSelected = selectedCheckboxes.length;
                 const bucket = document.querySelector('input[name="satellite"]:checked').value;
 
-                // --- Bug fix logic for Channel 2 ---
+                // --- Bug fix logic for unsupported files ---
                 const isChannel2Selected = numSelected === 1 && selectedCheckboxes[0].value.includes('C02_');
+                const isDMWSelected = numSelected === 1 && selectedCheckboxes[0].value.includes('DMW');
+                const isNonABI = numSelected === 1 && !productTypeSelect.value.startsWith('ABI-');
+
+
+                let unsupportedFile = false;
+                let message = "";
 
                 if (isChannel2Selected) {
+                    unsupportedFile = true;
+                    message = "Channel 2 imagery is not currently supported in the Sandbox viewer.";
+                } else if (isDMWSelected) {
+                    unsupportedFile = true;
+                    message = "DMW (Derived Motion Winds) products are not currently supported in the Sandbox viewer.";
+                } else if (isNonABI) {
+                    unsupportedFile = true;
+                    const selectedProductLabel = productTypeSelect.options[productTypeSelect.selectedIndex].text;
+                    message = `${selectedProductLabel} products are not currently supported in the Sandbox viewer. Only ABI products are supported.`;
+                }
+
+
+                if (unsupportedFile) {
                     openSandboxButton.disabled = true;
                     openSandboxButton.classList.add('opacity-50', 'cursor-not-allowed');
                     // Use the error message div but style it as an informational message
                     instructionMessageDiv.className = 'error-message bg-blue-100 text-blue-700 border-blue-300';
-                    displayInstruction("Channel 2 imagery is not currently supported in the Sandbox viewer.");
+                    displayInstruction(message);
                 } else {
                     openSandboxButton.disabled = false;
                     openSandboxButton.classList.remove('opacity-50', 'cursor-not-allowed');
-                    // Hide the instruction only if it's the specific channel 2 message
-                    if (instructionMessageDiv.textContent.includes("Channel 2 imagery")) {
+                    // Hide the instruction only if it's one of the specific unsupported file messages
+                    if (instructionMessageDiv.textContent.includes("not currently supported")) {
                         // Reset classname back to default green
                         instructionMessageDiv.className = 'error-message bg-green-100 text-green-700 border-green-300';
                         hideInstruction();
