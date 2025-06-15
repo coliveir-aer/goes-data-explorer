@@ -58,7 +58,7 @@
             border-radius: 8px;
             font-weight: 600;
             cursor: pointer;
-            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out, opacity 0.2s ease-in-out;
             box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
         }
         .btn-primary:hover {
@@ -68,6 +68,12 @@
         .btn-primary:active {
             transform: translateY(0);
             box-shadow: 0 2px 5px rgba(59, 130, 246, 0.3);
+        }
+        .btn-primary:disabled, .btn-primary.cursor-not-allowed {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+            transform: translateY(0);
+            box-shadow: none;
         }
         .results-area {
             background-color: #f8fafc;
@@ -1210,6 +1216,11 @@
 
             // Event listener for the "Open in Sandbox" button
             openSandboxButton.addEventListener('click', () => {
+                // BUG FIX: Add check for disabled property
+                if (openSandboxButton.disabled) {
+                    return;
+                }
+
                 const selectedCheckboxes = resultsDiv.querySelectorAll('input[type="checkbox"]:checked');
                 if (selectedCheckboxes.length !== 1) {
                     displayError("Please select exactly ONE file to open in the sandbox.");
@@ -1395,13 +1406,35 @@
                 }
             }
             
+            // MODIFIED a lot of this function for the bug fix
             function updateSelectionPanels() {
                 const selectedCheckboxes = resultsDiv.querySelectorAll('input[type="checkbox"]:checked');
                 const numSelected = selectedCheckboxes.length;
                 const bucket = document.querySelector('input[name="satellite"]:checked').value;
 
+                // --- Bug fix logic for Channel 2 ---
+                const isChannel2Selected = numSelected === 1 && selectedCheckboxes[0].value.includes('C02_');
+
+                if (isChannel2Selected) {
+                    openSandboxButton.disabled = true;
+                    openSandboxButton.classList.add('opacity-50', 'cursor-not-allowed');
+                    // Use the error message div but style it as an informational message
+                    instructionMessageDiv.className = 'error-message bg-blue-100 text-blue-700 border-blue-300';
+                    displayInstruction("Channel 2 imagery is not currently supported in the Sandbox viewer.");
+                } else {
+                    openSandboxButton.disabled = false;
+                    openSandboxButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                    // Hide the instruction only if it's the specific channel 2 message
+                    if (instructionMessageDiv.textContent.includes("Channel 2 imagery")) {
+                        // Reset classname back to default green
+                        instructionMessageDiv.className = 'error-message bg-green-100 text-green-700 border-green-300';
+                        hideInstruction();
+                    }
+                }
+                // --- End of bug fix logic ---
+
                 copyLinksPanel.classList.toggle('hidden', numSelected !== 1);
-                jsonOutputPanel.classList.toggle('hidden', numSelected < 1); // BUG FIX: Show if 1 or more are selected
+                jsonOutputPanel.classList.toggle('hidden', numSelected < 1);
 
                 if (numSelected === 1) {
                     const key = selectedCheckboxes[0].value;
@@ -1409,7 +1442,6 @@
                     s3LinkInputNew.value = `${bucket}/${key}`;
                 }
                 
-                // BUG FIX: Populate JSON if 1 or more are selected
                 if (numSelected >= 1) {
                     const keys = Array.from(selectedCheckboxes).map(cb => cb.value);
                     jsonDisplayArea.value = JSON.stringify({
